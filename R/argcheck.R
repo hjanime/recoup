@@ -138,7 +138,7 @@ validateListArgs <- function(what,arg.list) {
         },
         preprocessParams = {
             valid.1 <- names(arg.list) %in% c("normalize","sampleTo",
-                "spliceAction","seed")
+                "spliceAction","spliceRemoveQ","seed")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
@@ -172,7 +172,7 @@ validateListArgs <- function(what,arg.list) {
         },
         selector = {
             valid.1 <- names(arg.list) %in% c("id","biotype","exonType")
-            not.valid.1 <- which(!valid)
+            not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
                     "and will be ignored: ",paste(names(arg.list)[not.valid.1],
@@ -202,7 +202,7 @@ validateListArgs <- function(what,arg.list) {
         },
         plotParams = {
             valid.1 <- names(arg.list) %in% c("profile","heatmap","device",
-                "heatmapScale","outputDir","outputBase")
+                "signalScale","heatmapScale","outputDir","outputBase")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",

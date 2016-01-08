@@ -1,7 +1,7 @@
 require(biomaRt)
 
 buildAnnotationStore <- function(organisms,sources,
-    home=file.path(path.expand("~"),".recover"),rc=NULL) {
+    home=file.path(path.expand("~"),".recover"),forceDownload=TRUE,rc=NULL) {
     # Load required packages
     require(GenomicRanges)
 
@@ -18,45 +18,63 @@ buildAnnotationStore <- function(organisms,sources,
     # Retrieve gene annotations
     for (s in sources) {
         for (o in organisms) {
-            message("Retrieving gene annotation for ",o," from ",s)
-            ann <- getAnnotation(o,"gene",refdb=s,rc=rc)
-            gene <- makeGRangesFromDataFrame(
-                df=ann,
-                keep.extra.columns=TRUE,
-                seqnames.field="chromosome"
-            )
             store.path <- file.path(home,s,o)
             if (!dir.exists(store.path))
                 dir.create(store.path,recursive=TRUE,mode="0755")
-            save(gene,file=file.path(store.path,"gene.rda"),compress=TRUE)
+            if (file.exists(file.path(store.path,"gene.rda")) && !forceDownload)
+                message("Gene annotation for ",o," from ",s," has already ",
+                    "created and will be skipped. If you wish to recreate it ",
+                    "choose forceDownload = TRUE.")
+            else {
+                message("Retrieving gene annotation for ",o," from ",s)
+                ann <- getAnnotation(o,"gene",refdb=s,rc=rc)
+                gene <- makeGRangesFromDataFrame(
+                    df=ann,
+                    keep.extra.columns=TRUE,
+                    seqnames.field="chromosome"
+                )
+                save(gene,file=file.path(store.path,"gene.rda"),compress=TRUE)
+            }
         }
     }
 
     # Retrieve exon annotations
     for (s in sources) {
         for (o in organisms) {
-            message("Retrieving exon annotation for ",o," from ",s)
-            ann <- getAnnotation(o,"exon",refdb=s,rc=rc)
-            ann.gr <- makeGRangesFromDataFrame(
-                df=ann,
-                keep.extra.columns=TRUE,
-                seqnames.field="chromosome"
-            )
-            exon <- split(ann.gr,ann.gr$gene_id)
             store.path <- file.path(home,s,o)
             if (!dir.exists(store.path))
                 dir.create(store.path,recursive=TRUE,mode="0755")
-            save(exon,file=file.path(store.path,"exon.rda"),compress=TRUE)
+            
+            if (file.exists(file.path(store.path,"exon.rda")) && !forceDownload)
+                message("Exon annotation for ",o," from ",s," has already ",
+                    "created and will be skipped. If you wish to recreate it ",
+                    "choose forceDownload = TRUE.")
+            else {
+                message("Retrieving exon annotation for ",o," from ",s)
+                ann <- getAnnotation(o,"exon",refdb=s,rc=rc)
+                ann.gr <- makeGRangesFromDataFrame(
+                    df=ann,
+                    keep.extra.columns=TRUE,
+                    seqnames.field="chromosome"
+                )
+                exon <- split(ann.gr,ann.gr$gene_id)                
+                save(exon,file=file.path(store.path,"exon.rda"),compress=TRUE)
+            }
+            
             # Then summarize the exons and write again with type sum_exon
-            message("Merging exons for ",o," from ",s)
-            ann.gr <- reduceExons(ann.gr,rc=rc)
-            names(ann.gr) <- as.character(ann.gr$exon_id)
-            sexon <- split(ann.gr,ann.gr$gene_id)
-            store.path <- file.path(home,s,o)
-            if (!dir.exists(store.path))
-                dir.create(store.path,recursive=TRUE,mode="0755")
-            save(sexon,file=file.path(store.path,"summarized_exon.rda"),
-                compress=TRUE)
+            if (file.exists(file.path(store.path,"summarized_exon.rda")) 
+                && !forceDownload)
+                message("Summarized exon annotation for ",o," from ",s,
+                    " has already been created and will be skipped. If you ",
+                    "wish to recreate it choose forceDownload = TRUE.")
+            else {
+                message("Merging exons for ",o," from ",s)
+                ann.gr <- reduceExons(ann.gr,rc=rc)
+                names(ann.gr) <- as.character(ann.gr$exon_id)
+                sexon <- split(ann.gr,ann.gr$gene_id)
+                save(sexon,file=file.path(store.path,"summarized_exon.rda"),
+                    compress=TRUE)
+            }
         }
     }
 }
@@ -218,7 +236,7 @@ getEnsemblAnnotation <- function(org,type) {
     else if (type=="exon") {
         bm <- getBM(attributes=getExonAttributes(org),mart=mart)
         if (org == "hg19") {
-            disp("  Bypassing problem with hg19 Ensembl combined gene-exon ",
+            message("  Bypassing problem with hg19 Ensembl combined gene-exon ",
                 "annotation... Will take slightly longer...")
             bmg <- getBM(attributes=getGeneAttributes(org),mart=mart)
             gene_name <- bmg$external_gene_name
@@ -403,7 +421,7 @@ getGcContent <- function(ann,org) {
     checkTextArgs("org",org,c("hg18","hg19","hg38","mm9","mm10","rn5","dm3",
         "danrer7","pantro4","susscr3"),multiarg=FALSE)
     # Convert annotation to GRanges
-    disp("Converting annotation to GenomicRanges object...")
+    message("Converting annotation to GenomicRanges object...")
     if (packageVersion("GenomicRanges")<1.14)
         ann.gr <- GRanges(
             seqnames=Rle(ann[,1]),
@@ -418,9 +436,9 @@ getGcContent <- function(ann,org) {
             seqnames.field="chromosome"
         )
     bsg <- loadBsGenome(org)
-    disp("Getting DNA sequences...")
+    message("Getting DNA sequences...")
     seqs <- getSeq(bsg,names=ann.gr)
-    disp("Getting GC content...")
+    message("Getting GC content...")
     freq.matrix <- alphabetFrequency(seqs,as.prob=TRUE,baseOnly=TRUE)
     gc.content <- apply(freq.matrix,1,function(x) round(100*sum(x[2:3]),
         digits=2))
@@ -854,10 +872,10 @@ getUcscDbl <- function(org,type,refdb="ucsc") {
     drv <- dbDriver("SQLite")
     db.tmp <- tempfile()
     con <- dbConnect(drv,dbname=db.tmp)
-    disp("  Retrieving tables for temporary SQLite ",refdb," ",org," ",type,
+    message("  Retrieving tables for temporary SQLite ",refdb," ",org," ",type,
         " subset database")
     for (n in names(file.list)) {
-        disp("    Retrieving table ",n)
+        message("    Retrieving table ",n)
         download.file(file.list[[n]],file.path(tempdir(),
             paste(n,".txt.gz",sep="")),quiet=TRUE)
         if (.Platform$OS.type == "unix")

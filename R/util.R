@@ -71,50 +71,56 @@ preprocessRanges <- function(input,preprocessParams,bamParams=NULL,rc=NULL) {
         return(input)
     switch(preprocessParams$normalize,
         none = {
-            ranges <- cmclapply(input,function(x,p) {
+            ranges <- cmclapply(input,function(x,pp,p) {
                 message("Reading sample ",x$name)
-                return(readRanges(x$file,x$format,params=p))
-            },bamParams,rc=rc)
+                return(readRanges(x$file,x$format,pp$spliceAction,
+                    pp$spliceRemoveQ,params=p))
+            },preprocessParams,bamParams,rc=rc)
             names(ranges) <- names(input)
             for (n in names(input))
                 input[[n]]$ranges <- ranges[[n]]
         },
         linear = { # Same as none but will process after coverage calculation
-            ranges <- cmclapply(input,function(x,p) {
+            ranges <- cmclapply(input,function(x,pp,p) {
                 message("Reading sample ",x$name)
-                return(readRanges(x$file,x$format,params=p))
-            },bamParams,rc=rc)
+                return(readRanges(x$file,x$format,pp$spliceAction,
+                    pp$spliceRemoveQ,params=p))
+            },preprocessParams,bamParams,rc=rc)
             names(ranges) <- names(input)
             for (n in names(input))
                 input[[n]]$ranges <- ranges[[n]]
         },
         downsample = {
-            ranges <- cmclapply(input,function(x,p) {
+            ranges <- cmclapply(input,function(x,pp,p) {
                 message("Reading sample ",x$name)
-                return(readRanges(x$file,x$format,params=p))
-            },bamParams,rc=rc)
+                return(readRanges(x$file,x$format,pp$spliceAction,
+                    pp$spliceRemoveQ,params=p))
+            },preprocessParams,bamParams,rc=rc)
             libSizes <- lengths(ranges)
             downto = min(libSizes)
             set.seed(preprocessParams$seed)
             downsampleIndex <- lapply(libSizes,function(x,s) {
-                return(sample(x,s))
+                return(sort(sample(x,s)))
             },downto)
             names(downsampleIndex) <- names(input)
             for (n in names(input))
-                input[[n]]$ranges <- ranges[downsampleIndex[[n]]]
+                input[[n]]$ranges <- ranges[[n]][downsampleIndex[[n]]]
         },
         sampleto = {
-            ranges <- cmclapply(input,function(x,p) {
+            ranges <- cmclapply(input,function(x,pp,p) {
                 message("Reading sample ",x$name)
-                return(readRanges(x$file,x$format,params=p))
-            },bamParams,rc=rc)
+                return(readRanges(x$file,x$format,pp$spliceAction,
+                    pp$spliceRemoveQ,params=p))
+            },preprocessParams,bamParams,rc=rc)
             set.seed(preprocessParams$seed)
+            libSizes <- lengths(ranges)
             downsampleIndex <- lapply(libSizes,function(x,s) {
                 return(sample(x,s))
             },preprocessParams$sampleTo)
             names(downsampleIndex) <- names(input)
-            for (n in names(input))
-                input[[n]]$ranges <- ranges[downsampleIndex[[n]]]
+            for (n in names(input)) {
+                input[[n]]$ranges <- ranges[[n]][downsampleIndex[[n]]]
+            }
         }
     )
     return(input)
@@ -125,24 +131,44 @@ calcLinearFactors <- function(input,preprocessParams) {
     if (any(hasRanges))
         stop("Please provide input reads before calculation normalization ",
             "factors")
-    libSizes <- sapply(input,function(x) return(length(x)))
-    if (preprocessParams$normalize == "downsample")
+    libSizes <- sapply(input,function(x) return(length(x$ranges)))
+    if (preprocessParams$normalize=="linear" 
+        || preprocessParams$normalize=="downsample")
         linFac <- min(libSizes)/libSizes
-    else if (preprocessParams$normalize == "sampleto")
+    else if (preprocessParams$normalize=="sampleto")
         linFac <- preprocessParams$sampleTo/libSizes
     names(linFac) <- names(input)
     return(linFac)
 }
 
-readRanges <- function(input,format,params=NULL) {
+readRanges <- function(input,format,sa,sq,params=NULL) {
     if (format=="bam")
-        return(readBam(input,params))
+        return(readBam(input,sa,sq,params))
     else if (format=="bed")
         return(readBed(input))
 }
 
-readBam <- function(bam,params=NULL) {
-    return(trim(as(readGAlignments(file=bam),"GRanges")))
+readBam <- function(bam,sa=c("keep","remove","split"),sq=0.75,params=NULL) {
+    sa = sa[1]
+    checkTextArgs("sa",sa,c("keep","remove","split"),multiarg=FALSE)
+    checkNumArgs("sq",sq,"numeric",c(0,1),"botheq")
+    switch(sa,
+        keep = {
+            return(trim(as(readGAlignments(file=bam),"GRanges")))
+        },
+        split = {
+            return(trim(unlist(grglist(readGAlignments(file=bam)))))
+        },
+        remove = {
+            reads <- trim(as(readGAlignments(file=bam),"GRanges"))
+            qu <- quantile(width(reads),sq)
+            rem <- which(width(reads)>qu)
+            if (length(rem)>0)
+                reads <- reads[-rem]
+            message("  Excluded ",length(rem)," reads")
+            return(reads)
+        }
+    )
 }
 
 readBed <- function(bed) {
@@ -194,6 +220,7 @@ getDefaultListArgs <- function(arg) {
                 normalize=c("none","linear","downsample","sampleto"),
                 sampleTo=1e+6,
                 spliceAction=c("keep","remove","split"),
+                spliceRemoveQ=0.75,
                 seed=42
             ))
         },
@@ -214,6 +241,7 @@ getDefaultListArgs <- function(arg) {
             return(list(
                 profile=TRUE,
                 heatmap=TRUE,
+                signalScale=c("natural","log2"),
                 heatmapScale=c("each","common"),
                 device=c("x11","png","jpg","tiff","bmp","pdf","ps"),
                 outputDir=".",

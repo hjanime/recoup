@@ -3,9 +3,13 @@ library(grid)
 library(ComplexHeatmap)
 library(circlize)
 
-recoverProfile <- function(input,design=NULL,rc=NULL) {
+recoverProfile <- function(recoverObj,rc=NULL) {
+    # Retrieve data
+    input <- recoverObj$data
+    design <- recoverObj$design
+    opts <- recoverObj$plotopts
+    
     # Create the x-axis breaks and labels
-    opts <- input[[1]]$plotopts
     width <- ncol(input[[1]]$profile)
     lb <- makeHorizontalAnnotation(width,opts)
     breaks <- lb$breaks
@@ -217,12 +221,22 @@ recoverProfile <- function(input,design=NULL,rc=NULL) {
    return(ggplot.plot)
 }
 
-recoverHeatmap <- function(input,design=NULL,rc=NULL) {
-    opts <- input[[1]]$plotopts
+recoverHeatmap <- function(recoverObj,rc=NULL) {
+    input <- recoverObj$data
+    design <- recoverObj$design
+    opts <- recoverObj$plotopts
+    
     width <- ncol(input[[1]]$profile)
     labCol <- rep("",width)
     lb <- makeHorizontalAnnotation(width,opts)
     labCol[round(lb$breaks)] <- lb$labels
+    
+    if (opts$signalScale=="log2") {
+        for (n in names(input)) {
+            input[[n]]$profile <- input[[n]]$profile + 1
+            input[[n]]$profile <- log2(input[[n]]$profile)
+        }
+    }
     
     ha_col <- HeatmapAnnotation(cn=function(index) {
         width <- ncol(input[[1]]$profile)
@@ -238,12 +252,20 @@ recoverHeatmap <- function(input,design=NULL,rc=NULL) {
     profileColors <- unlist(sapply(input,function(x) return(x$color)))
     if (opts$heatmapScale=="each") {
         for (n in names(colorFuns)) {
-            sup <- quantile(input[[n]]$profile,0.95)
+            qs <- c(0.95,0.96,0.97,0.98,0.99,0.995,0.999)
+            pos <- 1
+            sup <- quantile(input[[n]]$profile,qs[pos])
+            while(sup==0) {
+                pos <- pos + 1
+                sup <- quantile(input[[n]]$profile,qs[pos])
+                if (sup!=0)
+                    break
+            }
             if (!is.null(profileColors))
-                colorFuns[[n]] <- colorRamp2(c(0,sup), c("white",
+                colorFuns[[n]] <- colorRamp2(c(0,sup),c("white",
                     input[[n]]$color))
             else
-                colorFuns[[n]] <- colorRamp2(c(0,sup), c("white","red2"))
+                colorFuns[[n]] <- colorRamp2(c(0,sup),c("white","red2"))
         }
     }
     else if (opts$heatmapScale=="common") {
@@ -311,7 +333,11 @@ recoverHeatmap <- function(input,design=NULL,rc=NULL) {
 
 calcPlotProfiles <- function(input,opts,rc) {
     if (opts$binParams$smooth)
-        profiles <- cmclapply(input,function(x,avgfun) {
+        profiles <- cmclapply(input,function(x,avgfun,scale) {
+            if (scale=="log2") {
+                x$profile <- x$profile + 1
+                x$profile <- log2(x$profile)
+            }
             o <- list()
             fit <- smooth.spline(apply(x$profile,2,avgfun))
             ci <- ssCI(fit)
@@ -319,9 +345,13 @@ calcPlotProfiles <- function(input,opts,rc) {
             o$upper <- ci$upper
             o$lower <- ci$lower
             return(o)
-        },opts$binParams$sumStat,rc=rc)
+        },opts$binParams$sumStat,opts$signalScale,rc=rc)
     else
-        profiles <- cmclapply(input,function(x,avgfun) {
+        profiles <- cmclapply(input,function(x,avgfun,scale) {
+            if (scale=="log2") {
+                x$profile <- x$profile + 1
+                x$profile <- log2(x$profile)
+            }
             o <- list()
             o$profile <- apply(x$profile,2,avgfun)
             varfun <- ifelse(avgfun=="mean","sd","mad")
@@ -329,13 +359,17 @@ calcPlotProfiles <- function(input,opts,rc) {
             o$upper <- o$profile + va
             o$lower <- o$profile - va
             return(o)
-        },opts$binParams$sumStat,rc=rc)
+        },opts$binParams$sumStat,opts$signalScale,rc=rc)
     return(profiles)
 }
 
 calcDesignPlotProfiles <- function(covmat,opts,rc) {
     if (opts$binParams$smooth)
-        profiles <- cmclapply(covmat,function(x,avgfun) {
+        profiles <- cmclapply(covmat,function(x,avgfun,scale) {
+            if (scale=="log2") {
+                x <- x + 1
+                x <- log2(x)
+            }
             o <- list()
             fit <- smooth.spline(apply(x,2,avgfun))
             ci <- ssCI(fit)
@@ -343,9 +377,13 @@ calcDesignPlotProfiles <- function(covmat,opts,rc) {
             o$upper <- ci$upper
             o$lower <- ci$lower
             return(o)
-        },opts$binParams$sumStat,rc=rc)
+        },opts$binParams$sumStat,opts$signalScale,rc=rc)
     else
-        profiles <- cmclapply(covmat,function(x,avgfun) {
+        profiles <- cmclapply(covmat,function(x,avgfun,scale) {
+            if (scale=="log2") {
+                x <- x + 1
+                x <- log2(x)
+            }
             o <- list()
             o$profile <- apply(x,2,avgfun)
             varfun <- ifelse(avgfun=="mean","sd","mad")
@@ -353,7 +391,7 @@ calcDesignPlotProfiles <- function(covmat,opts,rc) {
             o$upper <- o$profile + va
             o$lower <- o$profile - va
             return(o)
-        },opts$binParams$sumStat,rc=rc)
+        },opts$binParams$sumStat,opts$signalScale,rc=rc)
     return(profiles)
 }
 

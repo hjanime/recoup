@@ -40,12 +40,14 @@ recover <- function(
         normalize=c("none","linear","downsample","sampleto"),
         sampleTo=1e+6,
         spliceAction=c("keep","remove","split"),
+        spliceRemoveQ=0.75,
         seed=42
     ),
     bamParams=NULL,
     plotParams=list(
         profile=TRUE,
         heatmap=TRUE,
+        signalScale=c("natural","log2"),
         heatmapScale=c("each","common"),
         device=c("x11","png","jpg","tiff","bmp","pdf","ps"),
         outputDir=".",
@@ -73,16 +75,16 @@ recover <- function(
     rc=NULL
 ) {
     # Check main input
-    stored = FALSE
-    if (!is.list(input) && file.exists(input)) {
-        input <- tryCatch({
-            a <- load(input)
-            input <- input
-            stored = TRUE
-        },error=function(e) {
-            readConfig(input)
-        },finally={})
-    }
+    #if (!is.list(input) && file.exists(input)) {
+    #    input <- tryCatch({
+    #        a <- load(input)
+    #        input <- input
+    #    },error=function(e) {
+    #        readConfig(input)
+    #    },finally={})
+    #}
+    if (!is.list(input) && file.exists(input))
+        input <- readConfig(input)
     checkInput(input)
     names(input) <- sapply(input,function(x) return(x$id))
     
@@ -142,6 +144,7 @@ recover <- function(
     binParams$sumStat <- tolower(binParams$sumStat[1])
     preprocessParams$normalize <- tolower(preprocessParams$normalize[1])
     preprocessParams$spliceAction <- tolower(preprocessParams$spliceAction[1])
+    plotParams$signalScale <- tolower(plotParams$signalScale[1])
     plotParams$heatmapScale <- tolower(plotParams$heatmapScale[1])
     plotParams$device <- tolower(plotParams$device[1])
     kmParams$algorithm <- kmParams$algorithm[1]
@@ -172,6 +175,8 @@ recover <- function(
                     g <- load(file.path(localDbHome,refdb,genome,
                         "summarized_exon.rda"))
                     genomeRanges <- sexon
+                    g <- load(file.path(localDbHome,refdb,genome,"gene.rda"))
+                    helperRanges <- gene
                 }
             }
             else { # On the fly
@@ -249,7 +254,8 @@ recover <- function(
     }
     
     # Align names if we have helperRanges around
-    helperRanges <- helperRanges[names(genomeRanges)]
+    if (type=="rnaseq")
+        helperRanges <- helperRanges[names(genomeRanges)]
     
     # Here we must write code for the reading and normalization of bam files
     # The preprocessRanges function looks if there is a valid (not null) ranges
@@ -257,27 +263,60 @@ recover <- function(
     if (!onTheFly)
         input <- preprocessRanges(input,preprocessParams,bamParams=bamParams,
             rc=rc)
+
+    # Remove unwanted seqnames from reference ranges
+    chrs <- unique(unlist(lapply(input,function(x) {
+        return(as.character(runValue(seqnames(x$ranges))))
+    })))
+    if (type=="chipseq") {
+        keep <- which(as.character(seqnames(genomeRanges)) %in% chrs)
+        genomeRanges <- genomeRanges[keep]
+    }
+    else if (type=="rnaseq") {
+        keeph <- which(as.character(seqnames(helperRanges)) %in% chrs)
+        helperRanges <- helperRanges[keeph]
+        genomeRanges <- genomeRanges[names(helperRanges)]
+        lens <- which(lengths(genomeRanges)==0)
+        if (length(lens)>0)
+            genomeRanges[lens] <- NULL
+    }
     
     # Now we must follow two paths according to region type, genebody and custom
     # areas with equal/unequal widths, or tss, tes and 1-width custom areas
     customOne <- FALSE
     if (region=="custom" && all(width(genomeRanges)==1))
         customOne <- FALSE
-    input <- coverageRef(input,genomeRanges,region,flank,strandedParams)#,bamParams)
+    if (type=="chipseq")
+        input <- coverageRef(input,genomeRanges,region,flank,strandedParams)#,bamParams)
+    else if (type=="rnaseq")
+        input <- coverageRnaRef(input,genomeRanges,helperRanges,flank,
+            strandedParams)#,bamParams)
     
     # If normalization method is linear, we must adjust the coverages
-    if (preprocessParams$normalize == "linear") {
+    if (preprocessParams$normalize=="linear") {
         linFac <- calcLinearFactors(input,preprocessParams)
         for (n in names(input)) {
+            if (linFac[n]==1)
+                next
             if (is.null(input[[n]]$coverage$center))
-                input[[n]]$coverage <- input[[n]]$coverage * linFac[n]
+                input[[n]]$coverage <- cmclapply(input[[n]]$coverage,
+                    function(x,f) {
+                        return(x*f)
+                    },linFac[n]
+                )
             else {
                 input[[n]]$coverage$center <- 
-                    input[[n]]$coverage$center*linFac[n]
+                    cmclapply(input[[n]]$coverage$center,function(x,f) {
+                        return(x*f)
+                    },linFac[n])
                 input[[n]]$coverage$upstream <- 
-                    input[[n]]$coverage$upstream*linFac[n]
+                    cmclapply(input[[n]]$coverage$upstream,function(x,f) {
+                        return(x*f)
+                    },linFac[n])
                 input[[n]]$coverage$downstream <- 
-                    input[[n]]$coverage$downstream*linFac[n]
+                    cmclapply(input[[n]]$coverage$downstream,function(x,f) {
+                        return(x*f)
+                    },linFac[n])
             }
         }
     }
@@ -342,8 +381,9 @@ recover <- function(
     
     # Coverages and profiles calculated... Now depending on plot option, we go 
     # further or return the enriched input object for saving
+    recoverObj <- toOutput(input,design,saveParams)
     if (!plotParams$profile && !plotParams$heatmap)
-        return(toOutput(input,saveParams))
+        return(recoverObj)
     
     # Attach some config options for profile and heatmap
     plotOpts <- list(
@@ -352,18 +392,20 @@ recover <- function(
         flank=flank,
         binParams=binParams,
         customOne=customOne,
+        signalScale=plotParams$signalScale,
         heatmapScale=plotParams$heatmapScale,
         complexHeatmapParams=complexHeatmapParams
     )
-    for (n in names(input))
-        input[[n]]$plotopts <- plotOpts
+    recoverObj$plotopts <- plotOpts
     
     # We must pass the matrices to plotting function
     if (plotParams$profile) {
         message("Constructing genomic coverage profile curve")
-        theProfile <- recoverProfile(input,design=design,rc=rc)
-        if (plotParams$device=="x11")
+        theProfile <- recoverProfile(recoverObj,rc=rc)
+        if (plotParams$device=="x11") {
+            dev.new()
             plot(theProfile)
+        }
         else
             ggsave(filename=paste(plotParams$outputBase,"_profile.",
                 plotParams$device,sep=""),plot=theProfile,
@@ -403,7 +445,7 @@ recover <- function(
         }
         
         if (binParams$forceHeatmapBinning) {
-            helpInput <- input
+            helpInput <- recoverObj$data
             if (region %in% c("tss","tes") || customOne) {
                 for (n in names(helpInput)) {
                     message("Calculating ",region," profile for ",
@@ -436,10 +478,12 @@ recover <- function(
             }
         }
         else
-            helpInput <- input
+            helpInput <- recoverObj$data
         
+        helpObj <- recoverObj
+        helpObj$data <- helpInput
         message("Constructing genomic coverage heatmap")
-        theHeatmap <- recoverHeatmap(helpInput,design=design,rc=rc)
+        theHeatmap <- recoverHeatmap(helpObj,rc=rc)
         
         if (plotParams$device=="x11") {
             dev.new()
@@ -460,7 +504,7 @@ recover <- function(
     }
     
     # Return the enriched input object according to save options
-    return(toOutput(input,saveParams))
+    return(recoverObj)
 }
 
 coverageRef <- function(input,genomeRanges,region=c("tss","tes","genebody",
@@ -504,50 +548,51 @@ coverageBaseRef <- function(input,genomeRanges,region,flank,strandedParams) {
 }
 
 coverageAreaRef <- function(input,genomeRanges,region,flank,strandedParams,
-    bamParams) {
+    bamParams=NULL) {
     mainRanges <- getRegionalRanges(genomeRanges,region,flank)
     leftRanges <- getFlankingRanges(mainRanges,flank[1],"upstream")
     rightRanges <- getFlankingRanges(mainRanges,flank[2],"downstream")
     
     names(input) <- sapply(input,function(x) return(x$id))
     for (n in names(input)) {
+        theRanges <- splitBySeqname(input[[n]]$ranges)
         message("Calculating ",region," coverage for ",input[[n]]$name)
         message(" center...")
-        input[[n]]$coverage$center <- calcCoverage(input[[n]]$ranges,mainRanges,
+        input[[n]]$coverage$center <- calcCoverage(theRanges,mainRanges,
             strand=strandedParams$strand,
             ignore.strand=strandedParams$ignoreStrand)
         message(" upstream...")
-        input[[n]]$coverage$upstream <- calcCoverage(input[[n]]$ranges,
-            leftRanges,strand=strandedParams$strand,
+        input[[n]]$coverage$upstream <- calcCoverage(theRanges,leftRanges,
+            strand=strandedParams$strand,
             ignore.strand=strandedParams$ignoreStrand)
         message(" downstream...")
-        input[[n]]$coverage$downstream <- calcCoverage(input[[n]]$ranges,
-            rightRanges,strand=strandedParams$strand,
+        input[[n]]$coverage$downstream <- calcCoverage(theRanges,rightRanges,
+            strand=strandedParams$strand,
             ignore.strand=strandedParams$ignoreStrand)
     }
     return(input)
 }
 
 coverageRnaRef <- function(input,genomeRanges,helperRanges,flank,strandedParams,
-    bamParams) {
-    mainRanges <- getRegionalRanges(genomeRanges,region,flank)
+    bamParams=NULL) {
     leftRanges <- getFlankingRanges(helperRanges,flank[1],"upstream")
     rightRanges <- getFlankingRanges(helperRanges,flank[2],"downstream")
     
     names(input) <- sapply(input,function(x) return(x$id))
     for (n in names(input)) {
-        message("Calculating ",region," coverage for ",input[[n]]$name)
+        theRanges <- splitBySeqname(input[[n]]$ranges)
+        message("Calculating genebody coverage for ",input[[n]]$name)
         message(" center...")
-        input[[n]]$coverage$center <- calcCoverage(input[[n]]$ranges,mainRanges,
+        input[[n]]$coverage$center <- calcCoverage(theRanges,genomeRanges,
             strand=strandedParams$strand,
             ignore.strand=strandedParams$ignoreStrand)
         message(" upstream...")
-        input[[n]]$coverage$upstream <- calcCoverage(input[[n]]$ranges,
-            leftRanges,strand=strandedParams$strand,
+        input[[n]]$coverage$upstream <- calcCoverage(theRanges,leftRanges,
+            strand=strandedParams$strand,
             ignore.strand=strandedParams$ignoreStrand)
         message(" downstream...")
-        input[[n]]$coverage$downstream <- calcCoverage(input[[n]]$ranges,
-            rightRanges,strand=strandedParams$strand,
+        input[[n]]$coverage$downstream <- calcCoverage(theRanges,rightRanges,
+            strand=strandedParams$strand,
             ignore.strand=strandedParams$ignoreStrand)
     }
     return(input)
@@ -588,8 +633,8 @@ calcCoverage <- function(input,mask,strand=NULL,ignore.strand=TRUE) {
         && !file.exists(input))
         stop("The input argument must be a GenomicRanges object or a valid ",
             "BAM file or a list of GenomicRanges")
-    if (!is(mask,"GRanges"))
-        stop("The mask argument must be a GenomicRanges object")
+    if (!is(mask,"GRanges") && !is(mask,"GRangesList"))
+        stop("The mask argument must be a GRanges or GRangesList object")
     isBam <- FALSE
     if (is.character(input) && file.exists(input))
         isBam <- TRUE
@@ -612,12 +657,15 @@ calcCoverage <- function(input,mask,strand=NULL,ignore.strand=TRUE) {
 }
 
 coverageFromRanges <- function(i,mask,input,ignore.strand) {
-    x <- mask[i]
+    if (is(mask,"GRangesList"))
+        x <- mask[[i]]
+    else
+        x <- mask[i]
     y<-list(
-        chromosome=as.character(seqnames(x)),
+        chromosome=as.character(seqnames(x))[1],
         start=start(x),
         end=end(x),
-        strand=as.character(strand(x)),
+        strand=as.character(strand(x))[1],
         reads=NULL,
         coverage=NULL
     )
@@ -627,14 +675,21 @@ coverageFromRanges <- function(i,mask,input,ignore.strand) {
                 ignore.strand=ignore.strand))]
     }
     else {
-        message(y$chromosome,"not found!")
+        message(y$chromosome," not found!")
         y$reads <- NULL
     }
     if (length(y$reads)>0) {
         tryCatch({
             cc <- as.character(seqnames(y$reads))[1]
             y$coverage <- coverage(y$reads)
-            y$coverage <- y$coverage[[cc]][y$start:y$end]
+            if (length(y$start)>1) { # List of exons, RNA, merge exons
+                i2k <- unlist(lapply(1:length(y$start),function(j,s,e) {
+                    return(s[j]:e[j])
+                },y$start,y$end))
+                y$coverage <- y$coverage[[cc]][i2k]
+            }
+            else
+                y$coverage <- y$coverage[[cc]][y$start:y$end]
             if (y$strand=="+")
                 return(y$coverage)
             else if (y$strand=="-")
@@ -653,8 +708,11 @@ coverageFromRanges <- function(i,mask,input,ignore.strand) {
         return(NULL)
 }
 
-coverageFromBam <- function(i,mask,input,ignore.strand) {
-    x <- mask[i]
+coverageFromBam <- function(i,mask,input,ignore.strand,pp) {
+    if (is(mask,"GRangesList"))
+        x <- mask[[i]]
+    else
+        x <- mask[i]
     y<-list(
         chromosome=as.character(seqnames(x)),
         start=start(x),
@@ -666,57 +724,40 @@ coverageFromBam <- function(i,mask,input,ignore.strand) {
     bam.file <- input
     bam.index <- paste(input,"bai",sep=".")
     bp <- ScanBamParam(which=x)
-    y$reads <- as(readGAlignments(file=bam.file,index=bam.index,param=bp,
-        with.which_label=TRUE),"GRanges")
+    
+    switch(pp$spliceAction,
+        keep = {
+            y$reads <- as(readGAlignments(file=bam.file,index=bam.index,
+                param=bp,with.which_label=TRUE),"GRanges")
+        },
+        split = {
+            y$reads <- unlist(grglist(readGAlignments(file=bam.file,
+                index=bam.index,param=bp,with.which_label=TRUE)))
+        },
+        remove = {
+            y$reads <- as(readGAlignments(file=bam.file,index=bam.index,
+                param=bp,with.which_label=TRUE),"GRanges")
+            qu <- quantile(width(y$reads),pp$spliceRemoveQ)
+            rem <- which(width(y$reads)>qu)
+            if (length(rem)>0)
+                y$reads <- y$reads[-rem]
+            message("  Excluded ",length(rem)," reads")
+        }
+    )
     
     if (length(y$reads)>0) {
         tryCatch({
             seqlevels(y$reads) <- as.character(seqnames(x))
             cc <- as.character(seqnames(y$reads))[1]
             y$coverage <- coverage(y$reads)
-            y$coverage <- y$coverage[[cc]][y$start:y$end]
-            if (y$strand=="+")
-                return(y$coverage)
-            else if (y$strand=="-")
-                return(rev(y$coverage))
+            if (length(y$start)>1) { # List of exons, RNA, merge exons
+                i2k <- unlist(lapply(1:length(y$start),function(j,s,e) {
+                    return(s[j]:e[j])
+                },y$start,y$end))
+                y$coverage <- y$coverage[[cc]][i2k]
+            }
             else
-                return(y$coverage)
-        },
-        error=function(e) {
-            message("Caught invalid genomic area!")
-            print(mask[i])
-            message("Will return zero coverage")
-            return(NULL)
-        },finally={})
-    }
-    else
-        return(NULL)
-}
-
-coverageFromRnaRanges <- function(i,mask,input,ignore.strand) {
-    x <- mask[i] # Is a set of ranges, not just one
-    y<-list(
-        chromosome=as.character(seqnames(x))[1],
-        #start=start(x),
-        #end=end(x),
-        strand=as.character(strand(x))[1],
-        reads=NULL,
-        coverage=NULL
-    )
-    if (!is.null(input[[y$chromosome]])) {
-        y$reads <- input[[y$chromosome]][
-            subjectHits(findOverlaps(x,input[[y$chromosome]],
-                ignore.strand=ignore.strand))]
-    }
-    else {
-        message(y$chromosome,"not found!")
-        y$reads <- NULL
-    }
-    if (length(y$reads)>0) {
-        tryCatch({
-            cc <- as.character(seqnames(y$reads))[1]
-            y$coverage <- coverage(y$reads)
-            y$coverage <- y$coverage[[cc]][y$start:y$end]
+                y$coverage <- y$coverage[[cc]][y$start:y$end]
             if (y$strand=="+")
                 return(y$coverage)
             else if (y$strand=="-")
@@ -778,6 +819,14 @@ profileMatrix <- function(input,region,binParams,rc=NULL) {
 
 baseCoverageMatrix <- function(cvrg,rc=NULL) {
     size <- length(cvrg[[1]])
+    if (size==0) {
+        for (i in 2:length(cvrg)) {
+            if (!is.null(cvrg[[i]])) {
+                size <- length(cvrg[[i]])
+                break
+            }
+        }
+    }
     tmp <- cmclapply(cvrg,function(x) {
         if (class(x)=="Rle")
             return(as.numeric(x))
@@ -863,7 +912,7 @@ applySelectors <- function(ranges,selector) {
     return(ranges)
 }
 
-toOutput <- function(input,saveParams) {
+toOutput <- function(input,design=NULL,saveParams,plotParams=NULL) {
     if (!saveParams$ranges) {
         for (i in 1:length(input))
             input[[i]]$ranges <- NULL
@@ -876,5 +925,9 @@ toOutput <- function(input,saveParams) {
         for (i in 1:length(input))
             input[[i]]$profile <- NULL
     }
-    return(input)
+    return(list(
+        data=input,
+        design=design,
+        plotopts=plotParams
+    ))
 }
