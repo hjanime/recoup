@@ -19,6 +19,10 @@ recover <- function(
         "susscr3"),
     refdb=c("ensembl","ucsc","refseq"),
     flank=c(2000,2000),
+    orderBy=list(
+        what=c("none","suma","sumn","maxa","maxn","hcn"),
+        order=c("descending","ascending")
+    ),
     binParams=list(
         flankBinSize=0,
         regionBinSize=0,
@@ -32,10 +36,6 @@ recover <- function(
         biotype=getBiotypes(genome),
         exonType=NULL
     ),
-    strandedParams=list(
-        strand=NULL,
-        ignoreStrand=TRUE
-    ),
     preprocessParams=list(
         normalize=c("none","linear","downsample","sampleto"),
         sampleTo=1e+6,
@@ -43,7 +43,6 @@ recover <- function(
         spliceRemoveQ=0.75,
         seed=42
     ),
-    bamParams=NULL,
     plotParams=list(
         profile=TRUE,
         heatmap=TRUE,
@@ -59,8 +58,28 @@ recover <- function(
         profile=FALSE
     ),
     complexHeatmapParams=list(
-        main=list(),
-        group=list()
+        main=list(
+            cluster_rows=ifelse(length(grep("hc",orderBy$what))>0,TRUE,FALSE),
+            cluster_columns=FALSE,
+            column_title_gp=gpar(fontsize=12,font=2),
+            show_row_names=FALSE,
+            show_column_names=FALSE,
+            heatmap_legend_param=list(
+                color_bar="continuous"
+            )
+        ),
+        group=list(
+            cluster_rows=ifelse(length(grep("hc",orderBy$what))>0,TRUE,FALSE),
+            cluster_columns=FALSE,
+            column_title_gp=gpar(fontsize=12,font=2),
+            show_row_names=FALSE,
+            show_column_names=FALSE,
+            row_title_gp=gpar(fontsize=10,font=2),
+            gap=unit(5,"mm"),
+            heatmap_legend_param=list(
+                color_bar="continuous"
+            )
+        )
     ),
     kmParams=list(
         k=0, # Do not perform kmeans
@@ -70,6 +89,11 @@ recover <- function(
         reference=NULL,
         seed=42
     ),
+    strandedParams=list(
+        strand=NULL,
+        ignoreStrand=TRUE
+    ),
+    bamParams=NULL,
     onTheFly=FALSE, # Directly from BAM w/o Ranges storing, also N/A with BED,
     localDbHome=file.path(path.expand("~"),".recover"),
     rc=NULL
@@ -122,6 +146,7 @@ recover <- function(
     plotParamsDefault <- getDefaultListArgs("plotParams")
     saveParamsDefault <- getDefaultListArgs("saveParams")
     kmParamsDefault <- getDefaultListArgs("kmParams")
+    orderByDefault <- getDefaultListArgs("orderBy")
     
     validateListArgs("binParams",binParams)
     validateListArgs("preprocessParams",preprocessParams)
@@ -131,6 +156,7 @@ recover <- function(
     validateListArgs("plotParams",plotParams)
     validateListArgs("saveParams",saveParams)
     validateListArgs("kmParams",kmParams)
+    validateListArgs("orderBy",orderBy)
     
     binParams <- setArg(binParamsDefault,binParams)
     preprocessParams <- setArg(preprocessParamsDefault,preprocessParams)
@@ -140,6 +166,7 @@ recover <- function(
     plotParams <- setArg(plotParamsDefault,plotParams)
     saveParams <- setArg(saveParamsDefault,saveParams)
     kmParams <- setArg(kmParamsDefault,kmParams)
+    orderBy <- setArg(orderByDefault,orderBy)
     
     binParams$sumStat <- tolower(binParams$sumStat[1])
     preprocessParams$normalize <- tolower(preprocessParams$normalize[1])
@@ -148,12 +175,38 @@ recover <- function(
     plotParams$heatmapScale <- tolower(plotParams$heatmapScale[1])
     plotParams$device <- tolower(plotParams$device[1])
     kmParams$algorithm <- kmParams$algorithm[1]
+    orderBy$what <- tolower(orderBy$what[1])
+    orderBy$order <- tolower(orderBy$order[1])
     
     if (is.null(plotParams$outputBase))
         plotParams$outputBase <- paste(sapply(input,function(x) return(x$id)),
             collapse="-")
     checkNumArgs("preprocessParams$sampleTo",preprocessParams$sampleTo,
         "numeric",1e+6,"gte")
+        
+    # Check compatibility of orderBy argument and ComplexHeatmap parameters
+    # 1. Hierarchical clustering asked in orderBy but otherwise in the heatmap
+    #    parameters. Clustering is performed.
+    if (length(grep("hc",orderBy$what))>0
+        && !(complexHeatmapParams$main$cluster_rows 
+        || complexHeatmapParams$group$cluster_rows)) {
+        warning("Hierarchical clustering asked in the orderBy parameter but ",
+            "is set to FALSE in complexHeatmapParams! Will auto-correct to ",
+            "perform hierarchical clustering ordering...",immediate.=TRUE)
+        complexHeatmapParams$main$cluster_rows <- TRUE
+        complexHeatmapParams$group$cluster_rows <- TRUE
+    }
+    # 2. Hierarchical clustering asked in heatmap parameters but not in the 
+    #    orderBy directives. Clustering is not performed.
+    if ((complexHeatmapParams$main$cluster_rows 
+        || complexHeatmapParams$group$cluster_rows)
+        && length(grep("hc",orderBy$what))==0) {
+        warning("Hierarchical clustering asked in the complexHeatmapParams ",
+            "parameter but not in orderBy parameter! Hierarchical clustering ",
+            "in the heatmap profile will be turned off",immediate.=TRUE)
+        complexHeatmapParams$main$cluster_rows <- FALSE
+        complexHeatmapParams$group$cluster_rows <- FALSE
+    }
     
     if (!is.data.frame(genome)) {
         if (file.exists(genome)) {
@@ -229,11 +282,29 @@ recover <- function(
                 "clustering is requested is 2")
         # Reduce the genomeRanges according to design or the other way
         if (nrow(design)>length(genomeRanges))
-            design <- design[names(genomeRanges),,drop=FALSE]
+            design <- tryCatch({
+                design[names(genomeRanges),,drop=FALSE]
+            },error=function(e) {
+                stop("Unexpected error occured! Are you sure that element ",
+                    "(row) names in the design file are of the same type as ",
+                    "the genome file?")
+            },finally={})
         else if (nrow(design)<=length(genomeRanges)) {
-            genomeRanges <- genomeRanges[rownames(design)]
+            genomeRanges <- tryCatch({
+                genomeRanges[rownames(design)]
+            },error=function(e) {
+                stop("Unexpected error occured! Are you sure that element ",
+                    "(row) names in the design file are of the same type as ",
+                    "the genome file?")
+            },finally={})
             if (type=="rnaseq")
-                helperRanges <- helperRanges[rownames(design)]
+                helperRanges <- tryCatch({
+                    helperRanges[rownames(design)]
+                },error=function(e) {
+                    stop("Unexpected error occured! Are you sure that element ",
+                        "(row) names in the design file are of the same type as ",
+                        "the genome file?")
+                },finally={})
         }
         # ...but maybe the names are incompatible
         if (length(genomeRanges)==0)
@@ -248,14 +319,14 @@ recover <- function(
     
     # Apply the rest of the filters if any to reduce later computational burden
     if (!is.null(selector)) {
-        genomeRanges <- applySelectors(genomeRanges,selector)
-        if (type=="rnaseq")
+        if (type=="chipseq")
+            genomeRanges <- applySelectors(genomeRanges,selector,rc=rc)
+        if (type=="rnaseq") {
             helperRanges <- applySelectors(helperRanges,selector)
+            # Filter and align names if we have helperRanges around
+            genomeRanges <- genomeRanges[names(helperRanges)]
+        }
     }
-    
-    # Align names if we have helperRanges around
-    if (type=="rnaseq")
-        helperRanges <- helperRanges[names(genomeRanges)]
     
     # Here we must write code for the reading and normalization of bam files
     # The preprocessRanges function looks if there is a valid (not null) ranges
@@ -390,10 +461,11 @@ recover <- function(
         region=region,
         type=type,
         flank=flank,
-        binParams=binParams,
         customOne=customOne,
         signalScale=plotParams$signalScale,
         heatmapScale=plotParams$heatmapScale,
+        binParams=binParams,
+        orderBy=orderBy,
         complexHeatmapParams=complexHeatmapParams
     )
     recoverObj$plotopts <- plotOpts
@@ -444,7 +516,8 @@ recover <- function(
                     "times and big figures!",immediate.=TRUE)
         }
         
-        if (binParams$forceHeatmapBinning) {
+        if (binParams$forceHeatmapBinning 
+            && (binParams$regionBinSize==0 || binParams$flankBinSize==0)) {
             helpInput <- recoverObj$data
             if (region %in% c("tss","tes") || customOne) {
                 for (n in names(helpInput)) {
@@ -485,9 +558,28 @@ recover <- function(
         message("Constructing genomic coverage heatmap")
         theHeatmap <- recoverHeatmap(helpObj,rc=rc)
         
+        # Derive the main heatmap in case of hierarchical clustering        
+        mainh <- 1
+        if (length(grep("hc",orderBy$what))>0) {
+            nc <- nchar(orderBy$what)
+            mh <- suppressWarnings(as.numeric(substr(orderBy$what,nc,nc)))
+            if (is.na(mh))
+                warning("Reference profile for hierarchical clustering order ",
+                    "not recognized! Using the 1st...",immediate.=TRUE)
+            else if (mh > length(input)) {
+                warning("Reference profile (",mh,") for hierarchical ",
+                    "clustering order does not exist (the input has only ",
+                    length(input)," sources! Using the last...",
+                    immediate.=TRUE)
+                    mainh <- length(input)
+            }
+            else
+                mainh <- mh
+        }
+        
         if (plotParams$device=="x11") {
             dev.new()
-            draw(theHeatmap,gap=unit(1,"cm"))
+            draw(theHeatmap,gap=unit(1,"cm"),main_heatmap=mainh)
         }
         else {
             # Starting from width=4, we add 1.5 inches for each heatmap
@@ -498,7 +590,7 @@ recover <- function(
             else
                 graphicsOpen(plotParams$device,paste(plotParams$outputBase,
                     "_heatmap.",plotParams$device,sep=""),width=iw,units="in")
-            draw(theHeatmap,gap=unit(1,"cm"))
+            draw(theHeatmap,gap=unit(1,"cm"),main_heatmap=mainh)
             graphicsClose(plotParams$device)
         }
     }
@@ -867,7 +959,7 @@ binCoverageMatrix <- function(cvrg,binSize=1000,stat=c("mean","median"),
     return(statMatrix)
 }
 
-applySelectors <- function(ranges,selector) {
+applySelectors <- function(ranges,selector,rc=NULL) {
     if (!is.null(selector$id)) {
         ranges <- ranges[selector$ids]
         if (length(ranges)==0)
@@ -876,16 +968,7 @@ applySelectors <- function(ranges,selector) {
                 "two files are compatible?")
     }
     if (!is.null(selector$biotype) && !is.null(ranges$biotype)) {
-        if (is(ranges,"GRanges"))
-            good <- which(ranges$biotype %in% selector$biotype)
-        else if (is(ranges,"GRangesList")) {
-            good <- which(unlist(cmclapply(ranges,function(x) {
-                if (x[1]$biotype %in% type)
-                    return(FALSE)
-                else
-                    return(TRUE)
-            },selector$biotype)))
-        }
+        good <- which(ranges$biotype %in% selector$biotype)
         ranges <- ranges[good]
         if (length(ranges)==0)
             stop("No ranges left after using the biotypes provided with the ",
@@ -893,16 +976,7 @@ applySelectors <- function(ranges,selector) {
                 "files are compatible?")
     }
     if (!is.null(selector$exonType) && !is.null(ranges$exon_type)) {
-        if (is(ranges,"GRanges"))
-            good <- which(ranges$exonType %in% selector$exonType)
-        else if (is(ranges,"GRangesList")) {
-            good <- which(unlist(cmclapply(ranges,function(x) {
-                if (x[1]$exon_type %in% type)
-                    return(FALSE)
-                else
-                    return(TRUE)
-            },selector$exonType)))
-        }
+        good <- which(ranges$exonType %in% selector$exonType)
         ranges <- ranges[good]
         if (length(ranges)==0)
             stop("No ranges left after using the exon types provided with ",
@@ -931,3 +1005,52 @@ toOutput <- function(input,design=NULL,saveParams,plotParams=NULL) {
         plotopts=plotParams
     ))
 }
+
+#applySelectors <- function(ranges,selector,rc=NULL) {
+#    if (!is.null(selector$id)) {
+#        ranges <- ranges[selector$ids]
+#        if (length(ranges)==0)
+#            stop("No ranges left after using the identifiers provided with ",
+#                "the selector field. Are you sure the identifiers between the ",
+#                "two files are compatible?")
+#    }
+#    if (!is.null(selector$biotype)) {
+#        if (is(ranges,"GRanges") && !is.null(ranges$biotype)) {
+#            good <- which(ranges$biotype %in% selector$biotype)
+#        }
+#        else if (is(ranges,"GRangesList") && !is.null(ranges[[1]]$biotype)) {
+#            bts <- unlist(lapply(ranges,function(x) {
+#                return(x[1]$biotype)
+#            }))
+#            good <- which(unlist(cmclapply(ranges,function(x) {
+#                if (x[1]$biotype %in% type)
+#                    return(FALSE)
+#                else
+#                    return(TRUE)
+#            },selector$biotype,rc=rc)))
+#        }
+#        ranges <- ranges[good]
+#        if (length(ranges)==0)
+#            stop("No ranges left after using the biotypes provided with the ",
+#                "selector field. Are you sure the identifiers between the two ",
+#                "files are compatible?")
+#    }
+#    if (!is.null(selector$exonType) && !is.null(ranges$exon_type)) {
+#        if (is(ranges,"GRanges"))
+#            good <- which(ranges$exonType %in% selector$exonType)
+#        else if (is(ranges,"GRangesList")) {
+#            good <- which(unlist(cmclapply(ranges,function(x) {
+#                if (x[1]$exon_type %in% type)
+#                    return(FALSE)
+#                else
+#                    return(TRUE)
+#            },selector$exonType)))
+#        }
+#        ranges <- ranges[good]
+#        if (length(ranges)==0)
+#            stop("No ranges left after using the exon types provided with ",
+#                "the selector field. Are you sure the identifiers between the ",
+#                "two files are compatible?")
+#    }
+#    return(ranges)
+#}

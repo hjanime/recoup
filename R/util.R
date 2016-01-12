@@ -205,6 +205,12 @@ ssCI <- function(fit) {
 
 getDefaultListArgs <- function(arg) {
     switch(arg,
+        orderBy = {
+			return(list(
+				what=c("none","suma","sumn","maxa","maxn","hc"),
+				order=c("descending","ascending")
+			))
+		},
         binParams = {
             return(list(
                 flankBinSize=0,

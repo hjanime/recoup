@@ -215,7 +215,7 @@ recoverProfile <- function(recoverObj,rc=NULL) {
             if (ncol(design)==2)
                 ggplot.plot <- ggplot.plot + facet_grid(fac2~.)
             if (ncol(design)==3)
-                ggplot.plot <- ggplot.plot + facet_grid(fac2~fac3)    
+                ggplot.plot <- ggplot.plot + facet_grid(fac2~fac3)
         }
    }
    return(ggplot.plot)
@@ -238,7 +238,7 @@ recoverHeatmap <- function(recoverObj,rc=NULL) {
         }
     }
     
-    ha_col <- HeatmapAnnotation(cn=function(index) {
+    haCol <- HeatmapAnnotation(cn=function(index) {
         width <- ncol(input[[1]]$profile)
         labCol <- rep("",width)
         lb <- makeHorizontalAnnotation(width,opts)
@@ -246,7 +246,20 @@ recoverHeatmap <- function(recoverObj,rc=NULL) {
         grid.text(labCol,(1:width)/width,1,vjust=1,
             gp=gpar(cex=0.8))
     })
-
+    
+    # Here we need to apply the orderBy directives. If orderBy$what is 
+    # something else that hierarchical clustering, parameter control in main
+    # has already fixed incompatibilities by turning off clustering. If it
+    # is clustering, it's turned on, so we need to decide which is the main
+    # profile.
+    # The same ordering ideas must be applied to the design elements... We must
+    # reorder the rownames of the design matrix in such a way as as to be ready 
+    # when fed to Heatmap function.
+    if (is.null(design))
+        sorter <- orderProfiles(input,opts,rc=rc)
+    else
+        sorter <- orderProfilesByDesign(input,design,opts,rc=rc)
+    
     colorFuns <- vector("list",length(input))
     names(colorFuns) <- names(input)
     profileColors <- unlist(sapply(input,function(x) return(x$color)))
@@ -283,28 +296,29 @@ recoverHeatmap <- function(recoverObj,rc=NULL) {
     }
     
     if (is.null(design)) {
+        hParams <- opts$complexHeatmapParams$main
         hmList <- NULL
         for (n in names(input)) {
             colnames(input[[n]]$profile) <- labCol
             hmList <- hmList + 
                 Heatmap(
-                    input[[n]]$profile,
+                    input[[n]]$profile[sorter$ix,],
                     name=input[[n]]$name,
-                    cluster_columns=FALSE,
-                    column_title_gp=gpar(fontsize=12,font=2),
-                    show_row_names=FALSE,
-                    show_column_names=FALSE,
+                    cluster_rows=hParams$cluster_rows,
+                    cluster_columns=hParams$cluster_columns,
+                    column_title_gp=hParams$column_title_gp,
+                    show_row_names=hParams$show_row_names,
+                    show_column_names=hParams$show_column_names,
                     col=colorFuns[[n]],
                     column_title=paste(input[[n]]$name,"signal"),
-                    heatmap_legend_param=list(
-                        color_bar="continuous"
-                    ),
-                    bottom_annotation=ha_col
+                    heatmap_legend_param=hParams$heatmap_legend_param,
+                    bottom_annotation=haCol
                 )
         }
     }
     else {
         message("Using provided design to facet the coverage profiles")
+        hParams <- opts$complexHeatmapParams$group
         hmList <- NULL
         for (n in names(input)) {
             colnames(input[[n]]$profile) <- labCol
@@ -312,19 +326,19 @@ recoverHeatmap <- function(recoverObj,rc=NULL) {
                 Heatmap(
                     input[[n]]$profile,
                     name=input[[n]]$name,
-                    cluster_columns=FALSE,
-                    column_title_gp=gpar(fontsize=12,font=2),
-                    show_row_names=FALSE,
-                    show_column_names=FALSE,
+                    cluster_rows=hParams$cluster_rows,
+                    cluster_columns=hParams$cluster_columns,
+                    column_title_gp=hParams$column_title_gp,
+                    show_row_names=hParams$show_row_names,
+                    show_column_names=hParams$show_column_names,
                     col=colorFuns[[n]],
                     column_title=paste(input[[n]]$name,"signal"),
-                    heatmap_legend_param=list(
-                        color_bar="continuous"
-                    ),
-                    bottom_annotation=ha_col,
+                    heatmap_legend_param=hParams$heatmap_legend_param,
+                    bottom_annotation=haCol,
                     split=design,
-                    row_title_gp=gpar(fontsize=10,font=2),
-                    gap=unit(5,"mm")
+                    row_order=sorter,
+                    row_title_gp=hParams$row_title_gp,
+                    gap=hParams$gap
                 )
        }
    }
@@ -393,6 +407,193 @@ calcDesignPlotProfiles <- function(covmat,opts,rc) {
             return(o)
         },opts$binParams$sumStat,opts$signalScale,rc=rc)
     return(profiles)
+}
+
+orderProfiles <- function(input,opts,rc=NULL) {
+    refh <- 1
+    if (length(grep("^(sum|max)",opts$orderBy$what,perl=TRUE))>0) {
+        nc <- nchar(opts$orderBy$what)
+        rh <- substr(opts$orderBy$what,nc,nc)
+        if (rh!="a") {
+            rh <- suppressWarnings(as.numeric(rh))
+            if (is.na(rh))
+                warning("Reference profile for heatmap ordering not ",
+                    "recognized! Using the 1st...",immediate.=TRUE)
+            else
+                refh <- rh
+        }
+        else
+            refh <- 0 # Flag to indicate order by sum/max of all profiles
+    }
+    byMax <- bySum <- FALSE
+    sorter <- list(ix=1:nrow(input[[1]]$profile))
+    if (length(grep("^sum",opts$orderBy$what,perl=TRUE))>0)
+        bySum <- TRUE
+    if (length(grep("^max",opts$orderBy$what,perl=TRUE))>0)
+        byMax <- TRUE
+    
+    if (bySum) {
+        if (refh==0) {
+            #theBigMatrix <- do.call("cbind",lapply(input,function(x) {
+            #   return(x$profile)
+            #}))
+            #theSum <- apply(theBigMatrix,1,sum)
+            tmp <- do.call("cbind",lapply(input,function(x,rc) {
+                s <- cmclapply(x$coverage,function(y) {
+                    if (is.list(y))
+                        return(sum(y$center))
+                    else
+                        return(sum(y))
+                },rc=rc)
+                return(unlist(s))
+            },rc=rc))
+            theVal <- apply(tmp,1,sum)
+            names(theVal) <- rownames(input[[1]]$profile)
+        }
+        else {
+            theVal <- unlist(cmclapply(input[[refh]]$coverage,function(y) {
+                if (is.list(y))
+                    return(sum(y$center))
+                else
+                    return(sum(y))
+            },rc=rc))
+            names(theVal) <- rownames(input[[refh]]$profile)
+        }
+        if (opts$orderBy$order=="descending")
+            sorter <- sort(theVal,decreasing=TRUE,index.return=TRUE)
+        else
+            sorter <- sort(theVal,index.return=TRUE)
+    }
+    if (byMax) {
+        if (refh==0) {
+            tmp <- do.call("cbind",lapply(input,function(x,rc) {
+                s <- cmclapply(x$coverage,function(y) {
+                    if (is.list(y))
+                        y <- y$center
+                    m <- max(y)
+                    mp <- which(y==m)
+                    if (length(mp)>1)
+                        return(as.numeric(y[sample(mp,1)]))
+                    else
+                        return(as.numeric(y[mp]))
+                },rc=rc)
+                return(unlist(s))
+            },rc=rc))
+            theVal <- apply(tmp,1,max)
+            names(theVal) <- rownames(input[[1]]$profile)
+        }
+        else {
+            theVal <- unlist(cmclapply(input[[refh]]$coverage,function(y) {
+                if (is.list(y))
+                    y <- y$center
+                m <- max(y)
+                mp <- which(y==m)
+                if (length(mp)>1)
+                    return(as.numeric(y[sample(mp,1)]))
+                else
+                    return(as.numeric(y[mp]))
+            },rc=rc))
+            names(theVal) <- rownames(input[[refh]]$profile)
+        }
+        if (opts$orderBy$order=="descending")
+            sorter <- sort(theVal,decreasing=TRUE,index.return=TRUE)
+        else
+            sorter <- sort(theVal,index.return=TRUE)
+    }
+    return(sorter)
+}
+
+orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
+    splitter <- split(1:nrow(design),design,drop=TRUE)
+    sortlist <- sorter <- vector("list",length(splitter))
+    names(sortlist) <- names(sorter) <- names(splitter)
+    
+    for (n in names(splitter)) {
+        S <- splitter[[n]]
+        subcov <- lapply(input,function(x,s) {
+            if (!is.null(x$coverage$center))
+                return(x$coverage$center[s])
+            else
+                return(x$coverage[s])
+        },S)
+            
+        refh <- 1
+        if (length(grep("^(sum|max)",opts$orderBy$what,perl=TRUE))>0) {
+            nc <- nchar(opts$orderBy$what)
+            rh <- substr(opts$orderBy$what,nc,nc)
+            if (rh!="a") {
+                rh <- suppressWarnings(as.numeric(rh))
+                if (is.na(rh))
+                    warning("Reference profile for heatmap ordering not ",
+                        "recognized! Using the 1st...",immediate.=TRUE)
+                else
+                    refh <- rh
+            }
+            else
+                refh <- 0 # Flag to indicate order by sum/max of all profiles
+        }
+        byMax <- bySum <- FALSE
+        sortlist[[n]] <- 1:length(S)
+        if (length(grep("^sum",opts$orderBy$what,perl=TRUE))>0)
+            bySum <- TRUE
+        if (length(grep("^max",opts$orderBy$what,perl=TRUE))>0)
+            byMax <- TRUE
+        
+        if (bySum) {
+            if (refh==0) {
+                tmp <- do.call("cbind",lapply(subcov,function(x,rc) {
+                    s <- cmclapply(x,function(y) {
+                        return(sum(y))
+                    },rc=rc)
+                    return(unlist(s))
+                },rc=rc))
+                theVal <- apply(tmp,1,sum)
+            }
+            else {
+                theVal <- unlist(cmclapply(subcov[[refh]],function(y) {
+                    return(sum(y))
+                },rc=rc))
+            }
+            if (opts$orderBy$order=="descending")
+                sortlist[[n]] <- 
+                    sort(theVal,decreasing=TRUE,index.return=TRUE)$ix
+            else
+                sortlist[[n]] <- sort(theVal,index.return=TRUE)$ix
+        }
+        if (byMax) {
+            if (refh==0) {
+                tmp <- do.call("cbind",lapply(subcov,function(x,rc) {
+                    s <- cmclapply(x,function(y) {
+                        m <- max(y)
+                        mp <- which(y==m)
+                        if (length(mp)>1)
+                            return(as.numeric(y[sample(mp,1)]))
+                        else
+                            return(as.numeric(y[mp]))
+                    },rc=rc)
+                    return(unlist(s))
+                },rc=rc))
+                theVal <- apply(tmp,1,max)
+            }
+            else {
+                theVal <- unlist(cmclapply(subcov[[refh]],function(y) {
+                    m <- max(y)
+                    mp <- which(y==m)
+                    if (length(mp)>1)
+                        return(as.numeric(y[sample(mp,1)]))
+                    else
+                        return(as.numeric(y[mp]))
+                },rc=rc))
+            }
+            if (opts$orderBy$order=="descending")
+                sortlist[[n]] <- 
+                    sort(theVal,decreasing=TRUE,index.return=TRUE)$ix
+            else
+                sortlist[[n]] <- sort(theVal,index.return=TRUE)$ix
+        }
+        sorter[[n]] <- S[sortlist[[n]]]
+   }
+   return(unlist(sorter))
 }
 
 makeHorizontalAnnotation <- function(width,opts) {

@@ -118,10 +118,10 @@ checkFileArgs <- function(arg.name,arg.value) {
 
 validateListArgs <- function(what,arg.list) {
     if (!(what %in% c("binParams","preprocessParams","selector",
-        "strandedParams","saveParams","plotParams","kmParams")))
+        "strandedParams","saveParams","plotParams","kmParams","orderBy")))
         stop("Input list type for validation must be one of \"binParams\", ",
             "\"preprocessParams\", \"selector\", \"strandedParams\", ",
-            "\"saveParams\", \"plotParams\", \"kmParams\"")
+            "\"saveParams\", \"plotParams\", \"kmParams\", \"orderBy\"")
     if (!is.list(arg.list))
         stop(what," argument must be a list!")
     switch(what,
@@ -214,6 +214,16 @@ validateListArgs <- function(what,arg.list) {
         kmParams = {
             valid.1 <- names(arg.list) %in% c("k","nstart","algorithm",
                 "reference","iterMax","seed")
+            not.valid.1 <- which(!valid.1)
+            if (length(not.valid.1)>0) {
+                warning("The following ",what," argument names are invalid ",
+                    "and will be ignored: ",paste(names(arg.list)[not.valid.1],
+                        collapse=", "),immediate.=TRUE)
+                arg.list[not.valid.1] <- NULL
+            }
+        },
+        orderBy = {
+            valid.1 <- names(arg.list) %in% c("what","order")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
