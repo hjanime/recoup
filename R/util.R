@@ -80,7 +80,7 @@ readConfig <- function(input) {
         output[[i]]$name <- nams[i]
         output[[i]]$file <- files[i]
         output[[i]]$format <- formats[i]
-        output[[i]]$color <- cls
+        output[[i]]$color <- cls[i]
         output[[i]]$ranges <- NULL
         output[[i]]$coverage <- NULL
         output[[i]]$profile <- NULL
