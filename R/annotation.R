@@ -1,9 +1,5 @@
-require(biomaRt)
-
 buildAnnotationStore <- function(organisms,sources,
     home=file.path(path.expand("~"),".recover"),forceDownload=TRUE,rc=NULL) {
-    # Load required packages
-    require(GenomicRanges)
 
     if (missing(organisms))
         organisms <- c("hg18","hg19","hg38","mm9","mm10","rn5","dm3","danrer7",
@@ -79,32 +75,6 @@ buildAnnotationStore <- function(organisms,sources,
     }
 }
 
-#' Merges exons to create a unique set of exons for each gene
-#'
-#' This function uses the \code{"reduce"} function of IRanges to construct virtual
-#' unique exons for each gene, so as to avoid inflating the read counts for each
-#' gene because of multiple possible transcripts. If the user wants transcripts
-#' instead of genes, they should be supplied to the original annotation table.
-#'
-#' @param gr a GRanges object created from the supplied annotation (see also the
-#' \code{\link{read2count}} and \code{\link{get.annotation}} functions.
-#' @param multic a logical value indicating the presence of multiple cores. Defaults
-#' to \code{FALSE}. Do not change it if you are not sure whether package parallel
-#' has been loaded or not.
-#' @return A GRanges object with virtual merged exons for each gene/transcript.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' require(GenomicRanges)
-#' ann <- get.annotation("mm9","exon")
-#' gr <- makeGRangesFromDataFrame(
-#'  df=ann,
-#'  keep.extra.columns=TRUE,
-#'  seqnames.field="chromosome"
-#' )
-#' re <- reduce.exons(gr)
-#'}
 reduceExons <- function(gr,rc=NULL) {
     gene <- unique(as.character(gr$gene_id))
     if (!is.null(gr$gene_name))
@@ -137,40 +107,6 @@ reduceExons <- function(gr,rc=NULL) {
     return(do.call("c",red.list))
 }
 
-#' Annotation downloader
-#'
-#' This function connects to the EBI's Biomart service using the package biomaRt
-#' and downloads annotation elements (gene co-ordinates, exon co-ordinates, gene
-#' identifications, biotypes etc.) for each of the supported organisms. See the
-#' help page of \code{\link{metaseqr}} for a list of supported organisms. The
-#' function downloads annotation for an organism genes or exons.
-#'
-#' @param org the organism for which to download annotation.
-#' @param type either \code{"gene"} or \code{"exon"}.
-#' @param refdb the online source to use to fetch annotation. It can be
-#' \code{"ensembl"} (default), \code{"ucsc"} or \code{"refseq"}. In the later two
-#' cases, an SQL connection is opened with the UCSC public databases.
-#' @param multic a logical value indicating the presence of multiple cores. Defaults
-#' to \code{FALSE}. Do not change it if you are not sure whether package parallel
-#' has been loaded or not. It is used in the case of \code{type="exon"} to process
-#' the return value of the query to the UCSC Genome Browser database.
-#' @return A data frame with the canonical (not isoforms!) genes or exons of the
-#' requested organism. When \code{type="genes"}, the data frame has the following
-#' columns: chromosome, start, end, gene_id, gc_content, strand, gene_name, biotype.
-#' When \code{type="exon"} the data frame has the following columns: chromosome,
-#' start, end, exon_id, gene_id, strand, gene_name, biotype. The gene_id and exon_id
-#' correspond to Ensembl gene and exon accessions respectively. The gene_name
-#' corresponds to HUGO nomenclature gene names.
-#' @note The data frame that is returned contains only "canonical" chromosomes
-#' for each organism. It does not contain haplotypes or random locations and does
-#' not contain chromosome M.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' hg19.genes <- get.annotation("hg19","gene","ensembl")
-#' mm9.exons <- get.annotation("mm9","exon","ucsc")
-#'}
 getAnnotation <- function(org,type,refdb="ensembl",rc=NULL) {
     org <- tolower(org)
     switch(refdb,
@@ -180,33 +116,6 @@ getAnnotation <- function(org,type,refdb="ensembl",rc=NULL) {
     )
 }
 
-#' Ensembl annotation downloader
-#'
-#' This function connects to the EBI's Biomart service using the package biomaRt
-#' and downloads annotation elements (gene co-ordinates, exon co-ordinates, gene
-#' identifications, biotypes etc.) for each of the supported organisms. See the
-#' help page of \code{\link{metaseqr}} for a list of supported organisms. The
-#' function downloads annotation for an organism genes or exons.
-#'
-#' @param org the organism for which to download annotation.
-#' @param type either \code{"gene"} or \code{"exon"}.
-#' @return A data frame with the canonical (not isoforms!) genes or exons of the
-#' requested organism. When \code{type="genes"}, the data frame has the following
-#' columns: chromosome, start, end, gene_id, gc_content, strand, gene_name, biotype.
-#' When \code{type="exon"} the data frame has the following columns: chromosome,
-#' start, end, exon_id, gene_id, strand, gene_name, biotype. The gene_id and exon_id
-#' correspond to Ensembl gene and exon accessions respectively. The gene_name
-#' corresponds to HUGO nomenclature gene names.
-#' @note The data frame that is returned contains only "canonical" chromosomes
-#' for each organism. It does not contain haplotypes or random locations and does
-#' not contain chromosome M.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' hg19.genes <- get.ensembl.annotation("hg19","gene")
-#' mm9.exons <- get.ensembl.annotation("mm9","exon")
-#'}
 getEnsemblAnnotation <- function(org,type) {
     dat <- "ENSEMBL_MART_ENSEMBL"
     mart <- tryCatch({
@@ -273,40 +182,6 @@ getEnsemblAnnotation <- function(org,type) {
     return(ann)
 }
 
-#' UCSC/RefSeq annotation downloader
-#'
-#' This function connects to the UCSC Genome Browser public database and downloads
-#' annotation elements (gene co-ordinates, exon co-ordinates, gene identifications
-#' etc.) for each of the supported organisms, but using UCSC instead of Ensembl.
-#' See the help page of \code{\link{metaseqr}} for a list of supported organisms.
-#' The function downloads annotation for an organism genes or exons.
-#'
-#' @param org the organism for which to download annotation.
-#' @param type either \code{"gene"} or \code{"exon"}.
-#' @param refdb either \code{"ucsc"} or \code{"refseq"}.
-#' @param multic a logical value indicating the presence of multiple cores. Defaults
-#' to \code{FALSE}. Do not change it if you are not sure whether package parallel
-#' has been loaded or not. It is used in the case of \code{type="exon"} to process
-#' the return value of the query to the UCSC Genome Browser database.
-#' @return A data frame with the canonical (not isoforms!) genes or exons of the
-#' requested organism. When \code{type="genes"}, the data frame has the following
-#' columns: chromosome, start, end, gene_id, gc_content, strand, gene_name, biotype.
-#' When \code{type="exon"} the data frame has the following columns: chromosome,
-#' start, end, exon_id, gene_id, strand, gene_name, biotype. The gene_id and exon_id
-#' correspond to UCSC or RefSeq gene and exon accessions respectively. The gene_name
-#' corresponds to HUGO nomenclature gene names.
-#' @note The data frame that is returned contains only "canonical" chromosomes
-#' for each organism. It does not contain haplotypes or random locations and does
-#' not contain chromosome M. Note also that as the UCSC databases do not contain
-#' biotype classification like Ensembl, this will be returned as \code{NA} and
-#' as a result, some quality control plots will not be available.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' hg19.genes <- getUcscAnnotation("hg19","gene","ucsc")
-#' mm9.exons <- getUcscAnnotation("mm9","exon")
-#'}
 getUcscAnnotation <- function(org,type,refdb="ucsc",rc=NULL) {
     if (!require(RMySQL)) {
         rmysql.present <- FALSE
@@ -393,26 +268,6 @@ getUcscAnnotation <- function(org,type,refdb="ucsc",rc=NULL) {
     return(ann)
 }
 
-#' Return a named vector of GC-content for each genomic region
-#'
-#' Returns a named numeric vector (names are the genomic region names, e.g. genes)
-#' given a data frame which can be converted to a GRanges object (e.g. it has at
-#' least chromosome, start, end fields). This function works best when the input
-#' annotation data frame has been retrieved using one of the SQL queries generated
-#' from \code{\link{getUcscQuery}}, used in \code{\link{getUcscAnnotation}}.
-#'
-#' @param ann a data frame which can be converted to a GRanges object, that means
-#' it has at least the chromosome, start, end fields. Preferably, the output of
-#' \code{link{getUcscAnnotation}}.
-#' @param org one of metaseqR supported organisms.
-#' @return A named numeric vector.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' ann <- getUcscAnnotation("mm9","gene","ucsc")
-#' gc <- getGcContent(ann,"mm9")
-#'}
 getGcContent <- function(ann,org) {
     if (missing(ann))
         stopwrap("A valid annotation data frame must be provided in order to ",
@@ -446,17 +301,6 @@ getGcContent <- function(ann,org) {
     return(gc.content)
 }
 
-#' Return a proper formatted organism alias
-#'
-#' Returns the proper UCSC Genome Browser database organism alias based on what is
-#' given to metaseqR. Internal use.
-#'
-#' @return A proper organism alias.
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' org <- getUcscOrganism("danrer7")
-#'}
 getUcscOrganism <- function(org) {
     switch(org,
         hg18 = { return("hg18") },
@@ -472,17 +316,6 @@ getUcscOrganism <- function(org) {
     )
 }
 
-#' Return a proper formatted BSgenome organism name
-#'
-#' Returns a properly formatted BSgenome package name according to metaseqR's
-#' supported organism. Internal use.
-#'
-#' @return A proper BSgenome package name.
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' bs.name <- getBsOrganism("hg18")
-#'}
 getBsOrganism <- function(org) {
     switch(org,
         hg18 = {
@@ -519,20 +352,6 @@ getBsOrganism <- function(org) {
     )
 }
 
-#' Loads (or downloads) the required BSGenome package
-#'
-#' Retrieves the required BSgenome package when the annotation source is \code{"ucsc"}
-#' or \code{"refseq"}. These packages are required in order to estimate the
-#' GC-content of the retrieved genes from UCSC or RefSeq.
-#'
-#' @param org one of \code{\link{metaseqr}} supported organisms.
-#' @return The BSgenome object for the requested organism.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' bs.obj <- loadBsGenome("mm9")
-#'}
 loadBsGenome <- function(org) {
     if (!require(BiocInstaller))
         stopwrap("The Bioconductor package BiocInstaller is required to ",
@@ -550,36 +369,10 @@ loadBsGenome <- function(org) {
     return(bs.obj)
 }
 
-#' Biotype converter
-#'
-#' Returns biotypes as character vector. Internal use.
-#'
-#' @param a the annotation data frame (output of \code{\link{get.annotation}}).
-#' @return A character vector of biotypes.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' hg18.genes <- get.annotation("hg18","gene")
-#' hg18.bt <- getBiotypes(hg18.genes)
-#'}
 getBiotypes <- function(a) {
     return(as.character(unique(a$biotype)))
 }
 
-#' Annotation downloader helper
-#'
-#' Returns the appropriate Ensembl host address to get different versions of
-#' annotation from. Internal use.
-#'
-#' @param org the organism for which to return the host address.
-#' @return A string with the host address.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' mm9.host <- getHost("mm9")
-#'}
 getHost <- function(org) {
     switch(org,
         hg18 = { return("may2009.archive.ensembl.org") },
@@ -597,18 +390,6 @@ getHost <- function(org) {
     )
 }
 
-#' Annotation downloader helper
-#'
-#' Returns the appropriate Ensembl host address to get different versions of
-#' annotation from (alternative hosts). Internal use.
-#'
-#' @param org the organism for which to return the host address.
-#' @return A string with the host address.
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' mm9.host <- getAltHost("mm9")
-#'}
 getAltHost <- function(org) {
     switch(org,
         hg18 = { return("may2009.archive.ensembl.org") },
@@ -626,19 +407,6 @@ getAltHost <- function(org) {
     )
 }
 
-#' Annotation downloader helper
-#'
-#' Returns a dataset (gene or exon) identifier for each organism recognized by
-#' the Biomart service for Ensembl. Internal use.
-#'
-#' @param org the organism for which to return the identifier.
-#' @return A string with the dataset identifier.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' dm3.id <- getDataset("dm3")
-#'}
 getDataset <- function(org) {
     switch(org,
         hg18 = { return("hsapiens_gene_ensembl") },
@@ -654,19 +422,6 @@ getDataset <- function(org) {
     )
 }
 
-#' Annotation downloader helper
-#'
-#' Returns a vector of chromosomes to maintain after annotation download. Internal
-#' use.
-#'
-#' @param org the organism for which to return the chromosomes. 
-#' @return A character vector of chromosomes.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' hg18.chr <- getValidChrs("hg18")
-#'}
 getValidChrs <- function(org)
 {
     switch(org,
@@ -743,20 +498,6 @@ getValidChrs <- function(org)
     )
 }
 
-#' Annotation downloader helper
-#'
-#' Returns a vector of genomic annotation attributes which are used by the biomaRt
-#' package in order to fetch the gene annotation for each organism. It has no
-#' parameters. Internal use.
-#'
-#' @param org one of the supported organisms.
-#' @return A character vector of Ensembl gene attributes.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' gene.attr <- getGeneAttributes()
-#'}
 getGeneAttributes <- function(org) {
     if (org %in% c("hg18","mm9"))
         return(c(
@@ -782,20 +523,6 @@ getGeneAttributes <- function(org) {
         ))
 }
 
-#' Annotation downloader helper
-#'
-#' Returns a vector of genomic annotation attributes which are used by the biomaRt
-#' package in order to fetch the exon annotation for each organism. It has no
-#' parameters. Internal use.
-#'
-#' @param org one of the supported organisms.
-#' @return A character vector of Ensembl exon attributes.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' exon.attr <- getExonAttributes()
-#'}
 getExonAttributes <- function(org) {
     if (org %in% c("hg18","mm9"))
         return(c(
@@ -831,23 +558,6 @@ getExonAttributes <- function(org) {
         ))
 }
 
-#' Download annotation from UCSC servers, according to organism and source
-#'
-#' Directly downloads UCSC and RefSeq annotation files from UCSC servers to be
-#' used with metaseqR. This functionality is used when the package RMySQL is not
-#' available for some reason, e.g. Windows machines.
-#'
-#' @param org one of metaseqR supported organisms.
-#' @param type either \code{"gene"} or \code{"exon"}.
-#' @param refdb one of \code{"ucsc"} or \code{"refseq"} to use the UCSC or RefSeq
-#' annotation sources respectively.
-#' @return A data frame with annotation elements.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' db.file <- getUcscDbl("hg18","gene","ucsc")
-#'}
 getUcscDbl <- function(org,type,refdb="ucsc") {
     type <- tolower(type[1])
     org <- tolower(org[1])
@@ -892,24 +602,6 @@ getUcscDbl <- function(org,type,refdb="ucsc") {
     return(db.tmp)
 }
 
-#' Get SQLite UCSC table defintions, according to organism and source
-#'
-#' Creates a list of UCSC Genome Browser database tables and their SQLite
-#' definitions with the purpose of creating a temporary SQLite database to be 
-#' used used with metaseqR. This functionality is used when the package RMySQL 
-#' is not available for some reason, e.g. Windows machines.
-#'
-#' @param org one of metaseqR supported organisms.
-#' @param type either \code{"gene"} or \code{"exon"}.
-#' @param refdb one of \code{"ucsc"} or \code{"refseq"} to use the UCSC or RefSeq
-#' annotation sources respectively.
-#' @return A list with SQLite table definitions.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' db.tabledefs <- get.ucsc.tables("hg18","gene","ucsc")
-#'}
 getUcscTabledef <- function(org,type,refdb="ucsc",what="queries") {
     type <- tolower(type[1])
     org <- tolower(org[1])
@@ -1388,21 +1080,6 @@ getUcscTabledef <- function(org,type,refdb="ucsc",what="queries") {
     )
 }
 
-#' Create SQLite UCSC table template defintions
-#'
-#' Returns an SQLIte table template defintion, according to  UCSC Genome Browser 
-#' database table schemas. This functionality is used when the package RMySQL 
-#' is not available for some reason, e.g. Windows machines. Internal use only.
-#'
-#' @param tab name of UCSC database table.
-#' @param what \code{"queries"} for SQLite table definitions or \code{"fields"}
-#' for table column names.
-#' @return An SQLite table definition.
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' db.table.tmpl <- getUcscTblTpl("knownCanonical")
-#'}
 getUcscTblTpl <- function(tab,what="queries") {
     if (what=="queries") {
         switch(tab,
@@ -1603,24 +1280,6 @@ getUcscTblTpl <- function(tab,what="queries") {
     }
 }
 
-#' Return queries for the UCSC Genome Browser database, according to organism and
-#' source
-#'
-#' Returns an SQL query to be used with a connection to the UCSC Genome Browser
-#' database and fetch metaseqR supported organism annotations. This query is
-#' constructed based on the data source and data type to be returned.
-#'
-#' @param org one of metaseqR supported organisms.
-#' @param type either \code{"gene"} or \code{"exon"}.
-#' @param refdb one of \code{"ucsc"} or \code{"refseq"} to use the UCSC or RefSeq
-#' annotation sources respectively.
-#' @return A valid SQL query.
-#' @export
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' db.query <- getUcscQuery("hg18","gene","ucsc")
-#'}
 getUcscQuery <- function(org,type,refdb="ucsc") {
     type <- tolower(type[1])
     org <- tolower(org[1])
@@ -2349,17 +2008,6 @@ getUcscQuery <- function(org,type,refdb="ucsc") {
     )
 }
 
-#' Return host, username and password for UCSC Genome Browser database
-#'
-#' Returns a character vector with a hostname, username and password to connect
-#' to the UCSC Genome Browser database to retrieve annotation. Internal use.
-#'
-#' @return A named character vector.
-#' @author Panagiotis Moulos
-#' @examples
-#' \dontrun{
-#' db.creds <- getUcscCredentials()
-#'}
 getUcscCredentials <- function() {
     return(c(
         host="genome-mysql.cse.ucsc.edu",

@@ -41,27 +41,51 @@ readConfig <- function(input) {
         stop("File to read sample info from should be a valid existing text ",
             "file!")
     tab <- read.delim(input)
-    samples <- as.character(tab[,1])
+    if (is.null(tab$id))
+        stop("Sample id column not found in ",input,"!")
+    if (is.null(tab$file))
+        stop("Sample file path column not found in ",input,"!")
+    if (is.null(tab$format))
+        stop("Sample file format column not found in ",input,"!")
+    samples <- as.character(tab$id)
     if (length(samples) != length(unique(samples)))
         stop("Sample identifiers must be unique for each sample!")
-    files <- as.character(tab[,3])
-    formats <- as.character(tab[,4])
+    if (length(grep(" ",samples))>0)
+        stop("White space is not allowed in sample ids!")
+    if (is.null(tab$name))
+        nams <- as.character(tab$name)
+    else
+        nams <- samples
+    files <- as.character(tab$file)
     if (any(!file.exists(files))) {
         bi <- which(!file.exists(files))
         stop("Input file ",files[bi]," does not exist! Please check paths...")
     }
+    formats <- as.character(tab$format)
     if (!all(formats %in% c("bam","bed")))
         stop("Input formats must be one of \"bam\", \"bed\"")
+    cls <- NULL
+    if (!is.null(tab$color)) {
+        cls <- as.character(tab$color)
+        chkcls <- areColors(cls)
+        if (!all(chkcls)) {
+            warning("Invalid colors found in color column in config file ",
+                input,"! Will use automatic colors...")
+            cls <- NULL
+        }
+    }
     output <- vector("list",nrow(tab))
     for (i in 1:nrow(tab)) {
         output[[i]]$id <- samples[i]
-        output[[i]]$name <- as.character(tab[i,2])
+        output[[i]]$name <- nams[i]
         output[[i]]$file <- files[i]
         output[[i]]$format <- formats[i]
+        output[[i]]$color <- cls
         output[[i]]$ranges <- NULL
         output[[i]]$coverage <- NULL
-        output[[i]]$color <- NULL
+        output[[i]]$profile <- NULL
     }
+    names(output) <- samples
     return(output)
 }
 
@@ -77,8 +101,10 @@ preprocessRanges <- function(input,preprocessParams,bamParams=NULL,rc=NULL) {
                     pp$spliceRemoveQ,params=p))
             },preprocessParams,bamParams,rc=rc)
             names(ranges) <- names(input)
-            for (n in names(input))
-                input[[n]]$ranges <- ranges[[n]]
+            #for (n in names(input))
+            #    input[[n]]$ranges <- ranges[[n]]
+            for (i in 1:length(input))
+                input[[i]]$ranges <- ranges[[i]]
         },
         linear = { # Same as none but will process after coverage calculation
             ranges <- cmclapply(input,function(x,pp,p) {
@@ -87,8 +113,10 @@ preprocessRanges <- function(input,preprocessParams,bamParams=NULL,rc=NULL) {
                     pp$spliceRemoveQ,params=p))
             },preprocessParams,bamParams,rc=rc)
             names(ranges) <- names(input)
-            for (n in names(input))
-                input[[n]]$ranges <- ranges[[n]]
+            #for (n in names(input))
+            #    input[[n]]$ranges <- ranges[[n]]
+            for (i in 1:length(input))
+                input[[i]]$ranges <- ranges[[i]]
         },
         downsample = {
             ranges <- cmclapply(input,function(x,pp,p) {
@@ -103,8 +131,10 @@ preprocessRanges <- function(input,preprocessParams,bamParams=NULL,rc=NULL) {
                 return(sort(sample(x,s)))
             },downto)
             names(downsampleIndex) <- names(input)
-            for (n in names(input))
-                input[[n]]$ranges <- ranges[[n]][downsampleIndex[[n]]]
+            #for (n in names(input))
+            #    input[[n]]$ranges <- ranges[[n]][downsampleIndex[[n]]]
+            for (i in 1:length(input))
+                input[[i]]$ranges <- ranges[[i]][downsampleIndex[[i]]]
         },
         sampleto = {
             ranges <- cmclapply(input,function(x,pp,p) {
@@ -118,9 +148,10 @@ preprocessRanges <- function(input,preprocessParams,bamParams=NULL,rc=NULL) {
                 return(sample(x,s))
             },preprocessParams$sampleTo)
             names(downsampleIndex) <- names(input)
-            for (n in names(input)) {
-                input[[n]]$ranges <- ranges[[n]][downsampleIndex[[n]]]
-            }
+            #for (n in names(input))
+            #    input[[n]]$ranges <- ranges[[n]][downsampleIndex[[n]]]
+            for (i in 1:length(input))
+                input[[i]]$ranges <- ranges[[i]][downsampleIndex[[i]]]
         }
     )
     return(input)
@@ -184,13 +215,12 @@ cmclapply <- function(...,rc) {
         if (ncores==1) 
             m <- FALSE
         else {
-            if (!missing(rc) && !is.na(rc) && !is.null(rc))
+            if (!missing(rc) && !is.null(rc))
                 ncores <- ceiling(rc*ncores)
-            options(cores=ncores)
         }
     }
     if (m)
-        return(mclapply(...,mc.cores=getOption("cores"),mc.set.seed=FALSE))
+        return(mclapply(...,mc.cores=ncores,mc.set.seed=FALSE))
     else
         return(lapply(...))
 }
@@ -206,11 +236,11 @@ ssCI <- function(fit) {
 getDefaultListArgs <- function(arg) {
     switch(arg,
         orderBy = {
-			return(list(
-				what=c("none","suma","sumn","maxa","maxn","hc"),
-				order=c("descending","ascending")
-			))
-		},
+            return(list(
+                what=c("none","suma","sumn","maxa","maxn","hc"),
+                order=c("descending","ascending")
+            ))
+        },
         binParams = {
             return(list(
                 flankBinSize=0,
@@ -225,7 +255,7 @@ getDefaultListArgs <- function(arg) {
             return(list(
                 normalize=c("none","linear","downsample","sampleto"),
                 sampleTo=1e+6,
-                spliceAction=c("keep","remove","split"),
+                spliceAction=c("split","keep","remove"),
                 spliceRemoveQ=0.75,
                 seed=42
             ))
@@ -258,7 +288,7 @@ getDefaultListArgs <- function(arg) {
             return(list(
                 ranges=TRUE,
                 coverage=TRUE,
-                profile=FALSE
+                profile=TRUE
             ))
         },
         kmParams = {
@@ -276,7 +306,7 @@ getDefaultListArgs <- function(arg) {
 
 getBiotypes <- function(org) {
     if (!(org %in% c("hg18","hg19","hg38","mm9","mm10","rn5","dm3","danrer7",
-        "pantro4","susscr3","tair10")))
+        "pantro4","susscr3")))
         return(NULL)
     switch(org,
         hg18 = {
@@ -375,4 +405,11 @@ setArg <- function(arg.list,arg.name,arg.value=NULL) {
         arg.list[arg.name] <- tmp
     }
     return(arg.list)
+}
+
+areColors <- function(x) {
+    return(sapply(x,function(y) {
+        tryCatch(is.matrix(col2rgb(y)),
+            error=function(e) FALSE)
+    }))
 }

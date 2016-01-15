@@ -9,6 +9,13 @@ recoverProfile <- function(recoverObj,rc=NULL) {
     design <- recoverObj$design
     opts <- recoverObj$plotopts
     
+    if (is.null(input[[1]]$profile))
+        stop("Profile matrix not found in the input object! Are you sure you ",
+            "saved it while running the main recover function? This may occur ",
+            "when using recoverProfile and/or recoverHeatmap on an object ",
+            "returned by recover having changed the default saveParams ",
+            "parameter")
+    
     # Create the x-axis breaks and labels
     width <- ncol(input[[1]]$profile)
     lb <- makeHorizontalAnnotation(width,opts)
@@ -226,12 +233,19 @@ recoverHeatmap <- function(recoverObj,rc=NULL) {
     design <- recoverObj$design
     opts <- recoverObj$plotopts
     
+    if (is.null(input[[1]]$profile))
+        stop("Profile matrix not found in the input object! Are you sure you ",
+            "saved it while running the main recover function? This may occur ",
+            "when using recoverProfile and/or recoverHeatmap on an object ",
+            "returned by recover having changed the default saveParams ",
+            "parameter")
+    
     width <- ncol(input[[1]]$profile)
     labCol <- rep("",width)
     lb <- makeHorizontalAnnotation(width,opts)
     labCol[round(lb$breaks)] <- lb$labels
     
-    if (opts$signalScale=="log2") {
+    if (opts$yAxisParams$signalScale=="log2") {
         for (n in names(input)) {
             input[[n]]$profile <- input[[n]]$profile + 1
             input[[n]]$profile <- log2(input[[n]]$profile)
@@ -263,7 +277,7 @@ recoverHeatmap <- function(recoverObj,rc=NULL) {
     colorFuns <- vector("list",length(input))
     names(colorFuns) <- names(input)
     profileColors <- unlist(sapply(input,function(x) return(x$color)))
-    if (opts$heatmapScale=="each") {
+    if (opts$yAxisParams$heatmapScale=="each") {
         for (n in names(colorFuns)) {
             qs <- c(0.95,0.96,0.97,0.98,0.99,0.995,0.999)
             pos <- 1
@@ -281,7 +295,7 @@ recoverHeatmap <- function(recoverObj,rc=NULL) {
                 colorFuns[[n]] <- colorRamp2(c(0,sup),c("white","red2"))
         }
     }
-    else if (opts$heatmapScale=="common") {
+    else if (opts$yAxisParams$heatmapScale=="common") {
         sups <- unlist(sapply(input,function(x) {
             return(quantile(x$profile,0.95))
         }))
@@ -359,7 +373,7 @@ calcPlotProfiles <- function(input,opts,rc) {
             o$upper <- ci$upper
             o$lower <- ci$lower
             return(o)
-        },opts$binParams$sumStat,opts$signalScale,rc=rc)
+        },opts$binParams$sumStat,opts$yAxisParams$signalScale,rc=rc)
     else
         profiles <- cmclapply(input,function(x,avgfun,scale) {
             if (scale=="log2") {
@@ -373,7 +387,7 @@ calcPlotProfiles <- function(input,opts,rc) {
             o$upper <- o$profile + va
             o$lower <- o$profile - va
             return(o)
-        },opts$binParams$sumStat,opts$signalScale,rc=rc)
+        },opts$binParams$sumStat,opts$yAxisParams$signalScale,rc=rc)
     return(profiles)
 }
 
@@ -391,7 +405,7 @@ calcDesignPlotProfiles <- function(covmat,opts,rc) {
             o$upper <- ci$upper
             o$lower <- ci$lower
             return(o)
-        },opts$binParams$sumStat,opts$signalScale,rc=rc)
+        },opts$binParams$sumStat,opts$yAxisParams$signalScale,rc=rc)
     else
         profiles <- cmclapply(covmat,function(x,avgfun,scale) {
             if (scale=="log2") {
@@ -405,7 +419,7 @@ calcDesignPlotProfiles <- function(covmat,opts,rc) {
             o$upper <- o$profile + va
             o$lower <- o$profile - va
             return(o)
-        },opts$binParams$sumStat,opts$signalScale,rc=rc)
+        },opts$binParams$sumStat,opts$yAxisParams$signalScale,rc=rc)
     return(profiles)
 }
 
@@ -439,11 +453,14 @@ orderProfiles <- function(input,opts,rc=NULL) {
             #}))
             #theSum <- apply(theBigMatrix,1,sum)
             tmp <- do.call("cbind",lapply(input,function(x,rc) {
-                s <- cmclapply(x$coverage,function(y) {
-                    if (is.list(y))
-                        return(sum(y$center))
-                    else
-                        return(sum(y))
+                if (is.null(x$coverage$center))
+                    theCov <- x$coverage
+                else
+                    theCov <- x$coverage$center
+                s <- cmclapply(theCov,function(y) {
+                    if (is.null(y))
+                        return(0)
+                    return(sum(y))
                 },rc=rc)
                 return(unlist(s))
             },rc=rc))
@@ -451,11 +468,14 @@ orderProfiles <- function(input,opts,rc=NULL) {
             names(theVal) <- rownames(input[[1]]$profile)
         }
         else {
-            theVal <- unlist(cmclapply(input[[refh]]$coverage,function(y) {
-                if (is.list(y))
-                    return(sum(y$center))
-                else
-                    return(sum(y))
+            if (is.null(input[[refh]]$coverage$center))
+                theCov <- input[[refh]]$coverage
+            else
+                theCov <- input[[refh]]$coverage$center
+            theVal <- unlist(cmclapply(theCov,function(y) {
+                if (is.null(y))
+                    return(0)
+                return(sum(y))
             },rc=rc))
             names(theVal) <- rownames(input[[refh]]$profile)
         }
@@ -467,9 +487,13 @@ orderProfiles <- function(input,opts,rc=NULL) {
     if (byMax) {
         if (refh==0) {
             tmp <- do.call("cbind",lapply(input,function(x,rc) {
-                s <- cmclapply(x$coverage,function(y) {
-                    if (is.list(y))
-                        y <- y$center
+                if (is.null(x$coverage$center))
+                    theCov <- x$coverage
+                else
+                    theCov <- x$coverage$center
+                s <- cmclapply(theCov,function(y) {
+                    if (is.null(y))
+                        y <- 0
                     m <- max(y)
                     mp <- which(y==m)
                     if (length(mp)>1)
@@ -483,9 +507,13 @@ orderProfiles <- function(input,opts,rc=NULL) {
             names(theVal) <- rownames(input[[1]]$profile)
         }
         else {
-            theVal <- unlist(cmclapply(input[[refh]]$coverage,function(y) {
-                if (is.list(y))
-                    y <- y$center
+            if (is.null(input[[refh]]$coverage$center))
+                theCov <- input[[refh]]$coverage
+            else
+                theCov <- input[[refh]]$coverage$center
+            theVal <- unlist(cmclapply(theCov,function(y) {
+                if (is.null(y))
+                    y <- 0
                 m <- max(y)
                 mp <- which(y==m)
                 if (length(mp)>1)
@@ -493,6 +521,11 @@ orderProfiles <- function(input,opts,rc=NULL) {
                 else
                     return(as.numeric(y[mp]))
             },rc=rc))
+            #print(theCov)
+            #print(theVal)
+            #print(length(theCov))
+            #print(length(theVal))
+            #print(length(rownames(input[[refh]]$profile)))
             names(theVal) <- rownames(input[[refh]]$profile)
         }
         if (opts$orderBy$order=="descending")
@@ -543,6 +576,8 @@ orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
             if (refh==0) {
                 tmp <- do.call("cbind",lapply(subcov,function(x,rc) {
                     s <- cmclapply(x,function(y) {
+                        if (is.null(y))
+                            return(0)
                         return(sum(y))
                     },rc=rc)
                     return(unlist(s))
@@ -551,6 +586,8 @@ orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
             }
             else {
                 theVal <- unlist(cmclapply(subcov[[refh]],function(y) {
+                    if (is.null(y))
+                        return(0)
                     return(sum(y))
                 },rc=rc))
             }
@@ -564,6 +601,8 @@ orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
             if (refh==0) {
                 tmp <- do.call("cbind",lapply(subcov,function(x,rc) {
                     s <- cmclapply(x,function(y) {
+                        if (is.null(y))
+                            y <- 0
                         m <- max(y)
                         mp <- which(y==m)
                         if (length(mp)>1)
@@ -577,6 +616,8 @@ orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
             }
             else {
                 theVal <- unlist(cmclapply(subcov[[refh]],function(y) {
+                    if (is.null(y))
+                        y <- 0
                     m <- max(y)
                     mp <- which(y==m)
                     if (length(mp)>1)
@@ -597,10 +638,10 @@ orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
 }
 
 makeHorizontalAnnotation <- function(width,opts) {
-    fl <- opts$flank
+    fl <- opts$xAxisParams$flank
     fl[1] <- -fl[1]
     edgeLabels <- paste(round(fl/1000,1),"kb",sep="")
-    switch(opts$region,
+    switch(opts$xAxisParams$region,
         tss = {
             midLabels <- "TSS"
             #breaks <- round(c(width/8,width/2,width-width/8),1)
@@ -616,8 +657,8 @@ makeHorizontalAnnotation <- function(width,opts) {
             if (opts$binParams$flankBinSize==0)
                 breaks <- c(
                     1, #round(abs(opts$flank[1])/8,1),
-                    abs(opts$flank[1]),
-                    width-opts$flank[2],
+                    abs(opts$xAxisParams$flank[1]),
+                    width-opts$xAxisParams$flank[2],
                     width #round(width-opts$flank[2]/8)
                 )
             else
@@ -629,7 +670,7 @@ makeHorizontalAnnotation <- function(width,opts) {
                 )
         },
         custom = {
-            if (opts$customOne) {
+            if (opts$xAxisParams$customIsBase) {
                 midLabels <- "Center"
                 breaks <- round(c(width/8,width/2,width-width/8),1)
             }
@@ -638,8 +679,8 @@ makeHorizontalAnnotation <- function(width,opts) {
                 if (opts$binParams$flankBinSize==0)
                     breaks <- c(
                         1, #round(abs(opts$flank[1])/8,1),
-                        abs(opts$flank[1]),
-                        width-opts$flank[2],
+                        abs(opts$xAxisParams$flank[1]),
+                        width-opts$xAxisParams$flank[2],
                         width #round(width-opts$flank[2]/8)
                     )
                 else

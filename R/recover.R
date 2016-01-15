@@ -3,13 +3,6 @@ require(GenomicRanges)
 require(GenomicAlignments)
 require(rtracklayer)
 
-# input
-# region: genebody, tss, tes, custom
-# flank: c(-2000,2000)
-# design: an optional file with identifiers and split conditions (e.g. high, low)
-# genome: hg19, mm9 etc
-# 
-
 recover <- function(
     input,
     design=NULL,
@@ -39,7 +32,7 @@ recover <- function(
     preprocessParams=list(
         normalize=c("none","linear","downsample","sampleto"),
         sampleTo=1e+6,
-        spliceAction=c("keep","remove","split"),
+        spliceAction=c("split","keep","remove"),
         spliceRemoveQ=0.75,
         seed=42
     ),
@@ -47,7 +40,7 @@ recover <- function(
         profile=TRUE,
         heatmap=TRUE,
         signalScale=c("natural","log2"),
-        heatmapScale=c("each","common"),
+        heatmapScale=c("common","each"),
         device=c("x11","png","jpg","tiff","bmp","pdf","ps"),
         outputDir=".",
         outputBase=NULL
@@ -55,7 +48,7 @@ recover <- function(
     saveParams=list(
         ranges=TRUE,
         coverage=TRUE,
-        profile=FALSE
+        profile=TRUE
     ),
     complexHeatmapParams=list(
         main=list(
@@ -98,29 +91,21 @@ recover <- function(
     localDbHome=file.path(path.expand("~"),".recover"),
     rc=NULL
 ) {
-    # Check main input
-    #if (!is.list(input) && file.exists(input)) {
-    #    input <- tryCatch({
-    #        a <- load(input)
-    #        input <- input
-    #    },error=function(e) {
-    #        readConfig(input)
-    #    },finally={})
-    #}
     if (!is.list(input) && file.exists(input))
         input <- readConfig(input)
     checkInput(input)
-    names(input) <- sapply(input,function(x) return(x$id))
+    if (is.null(names(input)))
+        names(input) <- sapply(input,function(x) return(x$id))
     
     # Check rest of arguments
     region <- tolower(region[1])
     refdb <- tolower(refdb[1])
     type <- tolower(type[1])
-    if (!is.null(design))
+    if (!is.null(design) && !is.data.frame(design))
         checkFileArgs("design",design)
-    if (file.exists(genome))
+    if (!is.data.frame(genome) && file.exists(genome))
         checkFileArgs("genome",genome)
-    else
+    else if (is.character(genome))
         checkTextArgs("genome",genome,c("hg18","hg19","hg38","mm9","mm10","rn5",
             "dm3","danrer7","pantro4","susscr3","tair10"),multiarg=FALSE)
     checkTextArgs("refdb",refdb,c("ensembl","ucsc","refseq"),multiarg=FALSE)
@@ -138,55 +123,55 @@ recover <- function(
         region <- "genebody"
     }
     
+    ## tolower of first
+    #binParams$sumStat <- tolower(binParams$sumStat[1])
+    #preprocessParams$normalize <- tolower(preprocessParams$normalize[1])
+    #preprocessParams$spliceAction <- tolower(preprocessParams$spliceAction[1])
+    #print(preprocessParams$spliceAction)
+    #plotParams$signalScale <- tolower(plotParams$signalScale[1])
+    #plotParams$heatmapScale <- tolower(plotParams$heatmapScale[1])
+    #plotParams$device <- tolower(plotParams$device[1])
+    #kmParams$algorithm <- kmParams$algorithm[1]
+    #orderBy$what <- tolower(orderBy$what[1])
+    #orderBy$order <- tolower(orderBy$order[1])
+    
     # and list arguments
+    orderByDefault <- getDefaultListArgs("orderBy")
     binParamsDefault <- getDefaultListArgs("binParams")
-    preprocessParamsDefault <- getDefaultListArgs("preprocessParams")
     selectorDefault <- getDefaultListArgs("selector")
-    strandedParamsDefault <- getDefaultListArgs("strandedParams")
+    preprocessParamsDefault <- getDefaultListArgs("preprocessParams")
     plotParamsDefault <- getDefaultListArgs("plotParams")
     saveParamsDefault <- getDefaultListArgs("saveParams")
     kmParamsDefault <- getDefaultListArgs("kmParams")
-    orderByDefault <- getDefaultListArgs("orderBy")
+    strandedParamsDefault <- getDefaultListArgs("strandedParams")
     
-    validateListArgs("binParams",binParams)
-    validateListArgs("preprocessParams",preprocessParams)
-    if (!is.null(selector))
-        validateListArgs("selector",selector)
-    validateListArgs("strandedParams",strandedParams)
-    validateListArgs("plotParams",plotParams)
-    validateListArgs("saveParams",saveParams)
-    validateListArgs("kmParams",kmParams)
-    validateListArgs("orderBy",orderBy)
-    
+    orderBy <- setArg(orderByDefault,orderBy)
     binParams <- setArg(binParamsDefault,binParams)
-    preprocessParams <- setArg(preprocessParamsDefault,preprocessParams)
     if (!is.null(selector))
         selector <- setArg(selectorDefault,selector)
-    strandedParams <- setArg(strandedParamsDefault,strandedParams)
+    preprocessParams <- setArg(preprocessParamsDefault,preprocessParams)
     plotParams <- setArg(plotParamsDefault,plotParams)
     saveParams <- setArg(saveParamsDefault,saveParams)
     kmParams <- setArg(kmParamsDefault,kmParams)
-    orderBy <- setArg(orderByDefault,orderBy)
+    strandedParams <- setArg(strandedParamsDefault,strandedParams)
     
-    binParams$sumStat <- tolower(binParams$sumStat[1])
-    preprocessParams$normalize <- tolower(preprocessParams$normalize[1])
-    preprocessParams$spliceAction <- tolower(preprocessParams$spliceAction[1])
-    plotParams$signalScale <- tolower(plotParams$signalScale[1])
-    plotParams$heatmapScale <- tolower(plotParams$heatmapScale[1])
-    plotParams$device <- tolower(plotParams$device[1])
-    kmParams$algorithm <- kmParams$algorithm[1]
-    orderBy$what <- tolower(orderBy$what[1])
-    orderBy$order <- tolower(orderBy$order[1])
+    orderBy <- validateListArgs("orderBy",orderBy)
+    binParams <- validateListArgs("binParams",binParams)
+    if (!is.null(selector))
+        selector <- validateListArgs("selector",selector)
+    preprocessParams <- validateListArgs("preprocessParams",preprocessParams)
+    plotParams <- validateListArgs("plotParams",plotParams)
+    saveParams <- validateListArgs("saveParams",saveParams)
+    kmParams <- validateListArgs("kmParams",kmParams)
+    strandedParams <- validateListArgs("strandedParams",strandedParams)
     
     if (is.null(plotParams$outputBase))
         plotParams$outputBase <- paste(sapply(input,function(x) return(x$id)),
             collapse="-")
-    checkNumArgs("preprocessParams$sampleTo",preprocessParams$sampleTo,
-        "numeric",1e+6,"gte")
         
     # Check compatibility of orderBy argument and ComplexHeatmap parameters
-    # 1. Hierarchical clustering asked in orderBy but otherwise in the heatmap
-    #    parameters. Clustering is performed.
+    # Hierarchical clustering asked in orderBy but otherwise in the heatmap
+    # parameters. Clustering is performed.
     if (length(grep("hc",orderBy$what))>0
         && !(complexHeatmapParams$main$cluster_rows 
         || complexHeatmapParams$group$cluster_rows)) {
@@ -196,8 +181,8 @@ recover <- function(
         complexHeatmapParams$main$cluster_rows <- TRUE
         complexHeatmapParams$group$cluster_rows <- TRUE
     }
-    # 2. Hierarchical clustering asked in heatmap parameters but not in the 
-    #    orderBy directives. Clustering is not performed.
+    # Hierarchical clustering asked in heatmap parameters but not in the 
+    # orderBy directives. Clustering is not performed.
     if ((complexHeatmapParams$main$cluster_rows 
         || complexHeatmapParams$group$cluster_rows)
         && length(grep("hc",orderBy$what))==0) {
@@ -258,6 +243,13 @@ recover <- function(
                 }
             }
         }
+    }
+    else {
+        rownames(genome) <- as.character(genome[,4])
+        genomeRanges <- makeGRangesFromDataFrame(
+            df=genome,
+            keep.extra.columns=TRUE
+        )
     }
     
     # Read and check design compatibilities. Check if k-means is requested and
@@ -452,18 +444,25 @@ recover <- function(
     
     # Coverages and profiles calculated... Now depending on plot option, we go 
     # further or return the enriched input object for saving
-    recoverObj <- toOutput(input,design,saveParams)
-    if (!plotParams$profile && !plotParams$heatmap)
+    if (!plotParams$profile && !plotParams$heatmap) {
+        recoverObj <- toOutput(input,design,saveParams)
         return(recoverObj)
+    }
+    else
+        recoverObj <- toOutput(input,design,
+            list(ranges=TRUE,coverage=TRUE,profile=TRUE))
     
     # Attach some config options for profile and heatmap
     plotOpts <- list(
-        region=region,
-        type=type,
-        flank=flank,
-        customOne=customOne,
-        signalScale=plotParams$signalScale,
-        heatmapScale=plotParams$heatmapScale,
+        xAxisParams=list(
+            region=region,
+            flank=flank,
+            customIsBase=customOne
+        ),
+        yAxisParams=list(
+            signalScale=plotParams$signalScale,
+            heatmapScale=plotParams$heatmapScale
+        ),
         binParams=binParams,
         orderBy=orderBy,
         complexHeatmapParams=complexHeatmapParams
@@ -596,12 +595,12 @@ recover <- function(
     }
     
     # Return the enriched input object according to save options
-    return(recoverObj)
+    return(toOutput(input,design,saveParams))
 }
 
 coverageRef <- function(input,genomeRanges,region=c("tss","tes","genebody",
     "custom"),flank=c(2000,2000),strandedParams=list(strand=NULL,
-    ignoreStrand=TRUE),bamParams=TRUE) {
+    ignoreStrand=TRUE),bamParams=NULL) {
     
     if (region %in% c("tss","tes","custom")) {
         if (region %in% c("tss","tes"))
@@ -665,8 +664,8 @@ coverageAreaRef <- function(input,genomeRanges,region,flank,strandedParams,
     return(input)
 }
 
-coverageRnaRef <- function(input,genomeRanges,helperRanges,flank,strandedParams,
-    bamParams=NULL) {
+coverageRnaRef <- function(input,genomeRanges,helperRanges,flank,
+    strandedParams=list(strand=NULL,ignoreStrand=TRUE),bamParams=NULL) {
     leftRanges <- getFlankingRanges(helperRanges,flank[1],"upstream")
     rightRanges <- getFlankingRanges(helperRanges,flank[2],"downstream")
     
