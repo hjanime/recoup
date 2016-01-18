@@ -6,7 +6,7 @@
 }
 \arguments{
     \item{org}{the organism for which to download
-    annotation. Check the main \code{\link{recover}}
+    annotation. Check the main \code{\link{recoup}}
     help page for details on supported organisms.}
 
     \item{type}{either \code{"gene"} or \code{"exon"}.}

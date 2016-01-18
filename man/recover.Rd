@@ -1,9 +1,9 @@
-\name{recover}
-\alias{recover}
+\name{recoup}
+\alias{recoup}
 \title{Create genomic signal profiles in predefined or 
 custom areas using short sequence reads}
 \usage{
-    recover <- function(
+    recoup <- function(
         input,
         design = NULL,
         region = c("genebody", "tss", "tes", "custom"),
@@ -97,12 +97,12 @@ custom areas using short sequence reads}
         ),
         bamParams = NULL,
         onTheFly = FALSE,
-        localDbHome = file.path(path.expand("~"), ".recover"),
+        localDbHome = file.path(path.expand("~"), ".recoup"),
         rc = NULL
     )
 }
 \arguments{
-    \item{input}{the main input to \code{recover} can be 
+    \item{input}{the main input to \code{recoup} can be 
     either a list or a configuration file (with essentially
     the same contents as the list). In case of list input,
     it is a list of n lists, where n the number of samples.
@@ -292,7 +292,7 @@ custom areas using short sequence reads}
     }}
 
     \item{saveParams}{a named list which controls the
-    information to be stored in the \code{recover} output
+    information to be stored in the \code{recoup} output
     list object. The list has the following fields:
     \itemize{
         \item \code{ranges}: set to \code{TRUE} (default)
@@ -307,9 +307,9 @@ custom areas using short sequence reads}
         to store the profile matrices exracted from 
         coverage summarizations. Set to \code{FALSE} for 
         not saving. It must be present when using the 
-        \code{recover} output in the plotting functions
-        \code{\link{recoverProfile}} and 
-        \code{\link{recoverHeatmap}}.
+        \code{recoup} output in the plotting functions
+        \code{\link{recoupProfile}} and 
+        \code{\link{recoupHeatmap}}.
     }
     See the Details section for some additional 
     information.}
@@ -321,12 +321,12 @@ custom areas using short sequence reads}
     \itemize{
         \item \code{main}: \code{\link{Heatmap}} parameters
         applied to each non-split (according to 
-        \code{design}) heatmap. See the \code{recover} 
+        \code{design}) heatmap. See the \code{recoup} 
         function call for supported parameters and 
         \code{\link{Heatmap}} for further details.
         \item \code{main}: \code{\link{Heatmap}} parameters
         applied to each split (according to \code{design}) 
-        heatmap. See the \code{recover} function call for 
+        heatmap. See the \code{recoup} function call for 
         supported parameters and \code{\link{Heatmap}} 
         for further details.
     }}
@@ -396,15 +396,15 @@ custom areas using short sequence reads}
         \code{ranges}, \code{coverage} and \code{profile}
         fields filled according to \code{saveParams}. This
         \code{data} member can be used again as an argument
-        to \code{recover}. The \code{coverage} and 
+        to \code{recoup}. The \code{coverage} and 
         \code{profile} fields will be recalculated according
-        to \code{recover} parameters but the \code{ranges} 
+        to \code{recoup} parameters but the \code{ranges} 
         will be resued if the input files are not changed.
         \item \code{design}: the design data frame which is
         used to facet the profiles.
         \item \code{plotopts}: plotting options read from
-        \code{\link{recoverProfile}} and 
-        \code{\link{recoverHeatmap}} functions in order to
+        \code{\link{recoupProfile}} and 
+        \code{\link{recoupHeatmap}} functions in order to
         create the respective plots. It is a simple list 
         object and users can modify the parameters which 
         are mostly self-explanatory.
@@ -415,7 +415,7 @@ custom areas using short sequence reads}
     created from short sequence reads derived from Next 
     Generation Sequencing technologies. The profiles 
     provided are either sumarized curve profiles or 
-    heatmap profiles. Currently, \code{recover} supports 
+    heatmap profiles. Currently, \code{recoup} supports 
     genomic profile plots for reads derived from ChIP-Seq 
     and RNA-Seq experiments. The function uses ggplot2 and
     ComplexHeatmap graphics facilities for curve and 
@@ -465,7 +465,7 @@ custom areas using short sequence reads}
     care of the rest. See also the 
     \code{\link{makeGRangesFromDataFrame}}'s documentation.
     When \code{genome} is one of the supported organisms,
-    \code{recover} takes care of the rest.
+    \code{recoup} takes care of the rest.
     
     When \code{region} is \code{"tss"}, the curve and 
     heatmap profiles are centered around the TSS of the
@@ -568,7 +568,7 @@ custom areas using short sequence reads}
     indices of reads to be removed for downsampling. It
     is required for reproducible results. The 
     \code{sampleTo} field of \code{preprocessParams}
-    tells recover the fixed number of reads to downsample
+    tells recoup the fixed number of reads to downsample
     all libraries when 
     \code{preprocessParams$normalize="sampleTo"}. It 
     defaults to 1 million reads (\code{1e+6}). The 
@@ -595,17 +595,17 @@ custom areas using short sequence reads}
     
     Reagrding the usage of \code{saveParams} argument, 
     this is useful for several purposes: one is for re-using
-    recover without re-reading BAM/BED files. If the ranges 
-    are present in the input object to recover, they are 
+    recoup without re-reading BAM/BED files. If the ranges 
+    are present in the input object to recoup, they are 
     not re-calculated. If not stored, the memory/storage 
     usage is reduced but the object can be used only for
     simply replotting the profiles using 
-    \code{\link{recoverProfile}} and/or 
-    \code{\link{recoverHeatmap}} functions.
+    \code{\link{recoupProfile}} and/or 
+    \code{\link{recoupHeatmap}} functions.
 }
 \examples{
 # Load some sample data
-data("recover_test_data",package="recover")
+data("recoup_test_data",package="recoup")
 
 # Note: the figures that will be produced will not look 
 # realistic and will be "bumpy". This is because package
@@ -614,7 +614,7 @@ data("recover_test_data",package="recover")
 # vignette on how to test with more realistic data.
 
 # TSS high resolution profile with no design
-test.tss <- recover(
+test.tss <- recoup(
     test.input,
     design=NULL,
     region="tss",
@@ -627,7 +627,7 @@ test.tss <- recover(
 \donttest{
 # Genebody low resolution profile with 2-factor design, 
 # wide genebody and more narrow flanking
-test.gb <- recover(
+test.gb <- recoup(
     test.input,
     design=test.design,
     region="genebody",

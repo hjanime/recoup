@@ -13,38 +13,38 @@
     )
 }
 \arguments{
-    \item{input}{an input list as in \code{\link{recover}} but
+    \item{input}{an input list as in \code{\link{recoup}} but
     with the \code{ranges} field of each member filled 
     (e.g. after using \code{\link{preprocessRanges}}).}
 
     \item{genomeRanges}{the \code{genome} from 
-    \code{\link{recover}} as a \code{GRanges} object (e.g. 
+    \code{\link{recoup}} as a \code{GRanges} object (e.g. 
     the output from 
     \code{\link{makeGRangesFromDataFrame}}).}
     
     \item{region}{see the \code{region} argument in the 
-    main \code{\link{recover}} function.}
+    main \code{\link{recoup}} function.}
     
     \item{flank}{see the \code{flank} argument in the 
-    main \code{\link{recover}} function.}
+    main \code{\link{recoup}} function.}
     
     \item{strandedParams}{see the \code{strandedParams} 
-    argument in the main \code{\link{recover}} function.}
+    argument in the main \code{\link{recoup}} function.}
     
     \item{bamParams}{see the \code{bamParams} 
-    argument in the main \code{\link{recover}} function.}
+    argument in the main \code{\link{recoup}} function.}
 }
 \value{
     Same as input with the \code{ranges} fields filled.
 }
 \description{
     This function fills the \code{coverage} field in the
-    main \code{input} argument in \code{\link{recover}} 
+    main \code{input} argument in \code{\link{recoup}} 
     function.
 }
 \examples{
 # Load some data
-data("recover_test_data",package="recover")
+data("recoup_test_data",package="recoup")
 
 # Calculate coverages
 testGenomeRanges <- makeGRangesFromDataFrame(df=test.genome,

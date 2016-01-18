@@ -5,8 +5,8 @@
     getBiotypes(org)
 }
 \arguments{
-    \item{org}{One of the supported \code{recover} organisms
-    See \code{\link{recover}} for further information.}
+    \item{org}{One of the supported \code{recoup} organisms
+    See \code{\link{recoup}} for further information.}
 }
 \value{
     A character vector of biotypes.

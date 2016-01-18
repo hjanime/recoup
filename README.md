@@ -1,4 +1,4 @@
-Genomic coverages remastered! The recover package.
+Genomic coverages remastered! The recoup package.
 ==================================================
 
 The explosion of the usage of Next Generation Sequencing techniques during the 
@@ -44,7 +44,7 @@ not least, ngs.plot requires a not so straightforward setup in order to run,
 it does not run in a unified environment (e.g. R environment) and in some cases
 produces oversized and complex output.
 
-The recover package comes to fill such gaps by stepping on the shoulder of 
+The recoup package comes to fill such gaps by stepping on the shoulder of 
 giants. It uses the now standardized and stable Bioconductor facilities to read
 and import short reads from BAM/BED files and also modern R graphics systems,
 namely [ggplot2](http://ggplot2.org/) and [ComplexHeatmap] 
@@ -52,29 +52,29 @@ namely [ggplot2](http://ggplot2.org/) and [ComplexHeatmap]
 averaged genomic profiles and genomic profile heatmaps. In addition it offers a
 lot of (easy to use) customization options and automation at various levels.
 Inexperienced users can gather their data in a simple text file and just choose
-one of the supported organisms and recover does the rest for them. More 
+one of the supported organisms and recoup does the rest for them. More 
 experienced users can play with several options and provide more flexible input
 so as to produce optimal results. This vignette, although it covers basic usage
-of the package, it offers tha basis for more sophisticated usage. recover is not
-as fast as ngs.plot but we are working on this! Also, recover is not here to 
+of the package, it offers tha basis for more sophisticated usage. recoup is not
+as fast as ngs.plot but we are working on this! Also, recoup is not here to 
 replace other more mature packages. It is here to offer more options to users
 that need more sophisticated genomic profile visualizations.
 
 ## 1 Getting started
 
-Detailed instructions on how to run the recover genomic profile creation 
+Detailed instructions on how to run the recoup genomic profile creation 
 pipeline can be found under the main documentation of the package:
 
 ```{r}
-library(recover)
+library(recoup)
 ```
 
 ```{r eval=FALSE}
-library(recover)
-help(recover)
+library(recoup)
+help(recoup)
 ```
 
-Briefly, to run recover you need:
+Briefly, to run recoup you need:
 
 * A set of BAM or BED files that contain the aligned short reads from a protein-
 DNA interaction experiment (ChIP-Seq from transcrption factors, DNA methylation
@@ -83,9 +83,9 @@ unspliced). Theoretically, alignments from other protocols can be used (e.g. to
 measure the coverage of Exome-Seq).
 * A set of reference genomic regions to calculate average profiles and heatmaps
 over. These can be provided as a BED-like text file with a header (see the data
-attached to the package, look at `recover` man page). They can also be provided
+attached to the package, look at `recoup` man page). They can also be provided
 as an organism version keyword, e.g. `hg19` or `mm9` and the respective regions
-will be either retrieved from a local `recover` annotation database setup, or
+will be either retrieved from a local `recoup` annotation database setup, or
 downloaded on the fly (takes significantly more time as some extra operations 
 are required).
 * A design file in the case that you wish to categorize your profiles (e.g. a 
@@ -97,7 +97,7 @@ of those in the reference genomic regions.
 
 The package contains a small dataset which serves only for package building and
 testing purposes as well as complying with Bioconductor guidelines. These data
-are useful for the user to check how the input data to recover should look like.
+are useful for the user to check how the input data to recoup should look like.
 For a more complete test dataset (a small one) have a look 
 [here](https://drive.google.com/file/d/0BxxrqIl3Nb0NSVNqdGNPa3M3cnc/view?usp=sharing)
 
@@ -131,36 +131,36 @@ liver):
     + _design_mm9_rna.txt_: A design file for profile plot faceting (or 
     separation of heatmap profiles) with categorization of genes according to 
     their Ensembl biotype and their direction of transcrpiption (strand). This
-    type of categorization is also present in the fixed `recover` annotation
+    type of categorization is also present in the fixed `recoup` annotation
     database
     
 In order to run the vignette examples, you should download and extract the 
-archive to a path of your preference, e.g. `/home/me/recover_tutorial`. In the 
+archive to a path of your preference, e.g. `/home/me/recoup_tutorial`. In the 
 rest of this tutorial, we assume that the path where the test data are placed is
-`/home/me/recover_tutorial`.
+`/home/me/recoup_tutorial`.
 
 ## 3 Building a local annotation store
 
-Apart from a user specified file, the reference genomic regions used by recover 
+Apart from a user specified file, the reference genomic regions used by recoup 
 to construct average profiles over, can be predefined gene set from a few common
-organisms supported by recover. See the `recover` man page for a list of these
+organisms supported by recoup. See the `recoup` man page for a list of these
 organisms. In order to use this "database" of predefined genomic areas, you 
 should run the function `buildAnnotationStore` with a list of organisms, a list
 of annotation sources (Ensembl, RefSeq and UCSC supported) and a desired path to
-store the annotations (defaults to `/home/me/.recover`). For example:
+store the annotations (defaults to `/home/me/.recoup`). For example:
 
 ```{r echo=TRUE, eval=FALSE}
 buildAnnotationStore(c("hg19","mm9","rn4"),c("ensembl","refseq"))
 ```
 See the man page of `buildAnnotationStore` for more details. This step is not
-necessary for recover to run as these annotations can be also downloaded on the
+necessary for recoup to run as these annotations can be also downloaded on the
 fly. However, if subsets of the supported organisms are to be used often, it is
 much more preferrable to spend some time building the local store as it can save
 a lot of running time.
 
-## 4 Running recover
+## 4 Running recoup
 
-The `recover` function can be used to create coverage profiles from ChIP-Seq 
+The `recoup` function can be used to create coverage profiles from ChIP-Seq 
 like experiments (signals over continuous genomic regions) or from RNA-Seq 
 experiments (signals over non-continuous genomic regions). More details 
 regarding each type can be found in
@@ -171,8 +171,8 @@ regarding each type can be found in
 ## Quick examples
 
 ```
-library(recover)
-test.path <- "/home/me/recover_tutorial/chipseq"
+library(recoup)
+test.path <- "/home/me/recoup_tutorial/chipseq"
 
 chip.input <- list(
     WT_H4K20me1=list(
@@ -196,7 +196,7 @@ chip.input <- list(
 ```
 genome <- file.path(test.path,"mm9_custom_chr12.txt")
 
-test <- recover(
+test <- recoup(
     input=chip.input,
     region="tss",
     type="chipseq",
@@ -213,8 +213,8 @@ test <- recover(
 ### RNA-Seq gene body profiles
 
 ```
-library(recover)
-test.path <- "/home/me/recover_tutorial/rnaseq"
+library(recoup)
+test.path <- "/home/me/recoup_tutorial/rnaseq"
 
 rna.input <- list(
     list(
@@ -231,7 +231,7 @@ rna.input <- list(
     )
 )
 
-test <- recover(
+test <- recoup(
     input=rna.input,
     type="rnaseq",
     genome="mm9",

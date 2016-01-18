@@ -1,18 +1,18 @@
 <!--
 %\VignetteEngine{knitr::knitr}
-%\VignetteIndexEntry{Using recover with continuous regions (ChIP-Seq)}
+%\VignetteIndexEntry{Using recoup with continuous regions (ChIP-Seq)}
 -->
 
 Construction of genomic coverage profiles in continuous regions
 ===============================================================
 
-This tutotial demonstrates a few examples of how you can use `recover` to create
+This tutotial demonstrates a few examples of how you can use `recoup` to create
 average genomic cpverage profiles and heatmaps from short read sequences for 
 genomic regions who are continuous. Such regions are ChIP-Seq peak areas, DNA
 methylation areas, PolII profiles over gene bodies or other custom regions which
 are __continuous__ (i.e. not spliced like intron-exon areas). Although most 
 parameters are self-explanarory, this tutorial is mean to be done along with 
-reading the man page of the `recover` function.
+reading the man page of the `recoup` function.
 
 ## 1 Get some data
 
@@ -24,30 +24,30 @@ multiple cores. We are working to make things faster! Any suggestions are most
 welcome!
 
 For the rest of this tutorial, it is supposed that you have uncompressed the tar
-archive in a directory called `/home/me/recover_tutorial`. We will use the 
-H4K20me1 data located in `/home/me/recover_tutorial/chipseq`. Have a look at the
-[introductory tutorial page](recover_intro.html) for a short description of the
+archive in a directory called `/home/me/recoup_tutorial`. We will use the 
+H4K20me1 data located in `/home/me/recoup_tutorial/chipseq`. Have a look at the
+[introductory tutorial page](recoup_intro.html) for a short description of the
 test data.
 
-## 2 Running recover with ChIP-Seq data
+## 2 Running recoup with ChIP-Seq data
 
-The `recover` function can be run either using a text __tab__ delimited file (no
+The `recoup` function can be run either using a text __tab__ delimited file (no
 other delimiters supported at this point) or a list of lists, where each sublist
 has some fields (mandatory and optional) with sample data. Have a look at the 
-`recover` man page for the format of the file and the list. A configuration file
+`recoup` man page for the format of the file and the list. A configuration file
  example can be found in the downloaded test data archive with the name 
  `test_config.txt`. It has the following format:
 
 | id              | name            | file                                                  | format | color     |
 |-----------------|-----------------|-------------------------------------------------------|--------|-----------|
-| WT_H4K20me1     | WT H4K20me1     | /home/me/recover_tutorial/chipseq/WT_H4K20me1.bam     | bam    | "#EE0000" |
-| Set8KO_H4K20me1 | Set8KO H4K20me1 | /home/me/recover_tutorial/chipseq/Set8KO_H4K20me1.bam | bam    | "#00BB00" |
+| WT_H4K20me1     | WT H4K20me1     | /home/me/recoup_tutorial/chipseq/WT_H4K20me1.bam     | bam    | "#EE0000" |
+| Set8KO_H4K20me1 | Set8KO H4K20me1 | /home/me/recoup_tutorial/chipseq/Set8KO_H4K20me1.bam | bam    | "#00BB00" |
 
 In case of a list, it has the same field as the configuration file. An input 
 list example:
 
 ```{r echo=TRUE, eval=FALSE}
-test.path <- "/home/me/recover_tutorial/chipseq"
+test.path <- "/home/me/recoup_tutorial/chipseq"
 
 chip.input <- list(
     list(
@@ -70,7 +70,7 @@ a color for each sample. The list can also be named, otherwise, the `id` field
 will be used for naming the list.
 
 ```{r echo=TRUE, eval=TRUE}
-test.path <- "/home/me/recover_tutorial/chipseq"
+test.path <- "/home/me/recoup_tutorial/chipseq"
 
 chip.input <- list(
     WT_H4K20me1=list(
@@ -92,7 +92,7 @@ chip.input <- list(
 
 ### TSS profiles
 
-Recover supports several pre-defined and typical locations for creating genomic
+`recoup` supports several pre-defined and typical locations for creating genomic
 profile plots, like transcription start sites (TSSs) and gene bodies. It also 
 supports several base-pair resolutions (coverage per base or binned). Have a 
 look at the man page for further details.
@@ -110,7 +110,7 @@ parameter is ignored. The flanking region is +/-2kb and no normalization is
 applied (BAM files are sampled from already downsampled initial files).
 
 ```{r echo=TRUE, eval=TRUE}
-test <- recover(
+test <- recoup(
     input=chip.input,
     region="tss",
     type="chipseq",
@@ -125,7 +125,7 @@ The following will produce the previous plot at a lower high resolution. The
 output heatmaps will have a common signal scale.
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=chip.input,
     region="tss",
     type="chipseq",
@@ -142,7 +142,7 @@ test <- recover(
 Like the previous from a configuration file (not evaluated here):
 
 ```{r echo=TRUE, eval=FALSE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=file.path(test.path,"test_config.txt"),
     region="tss",
     type="chipseq",
@@ -160,7 +160,7 @@ clustering is applied and the resulting order is applied to the other one) is
 the WT one. Design is auto-created.
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=chip.input,
     region="tss",
     type="chipseq",
@@ -181,7 +181,7 @@ Set8 KO gene body profiles. No design is applied. Auto-binning will be applied
 as the gene bodies do not have a constant length. 
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=chip.input,
     region="genebody",
     type="chipseq",
@@ -198,7 +198,7 @@ narrow the flanking regions by lowering the resolution and setting a lower
 number of bins for the flanking regions.
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=chip.input,
     region="genebody",
     type="chipseq",
@@ -213,7 +213,7 @@ test <- recover(
 Same as previous with k-means clustering (k=4):
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=chip.input,
     region="genebody",
     type="chipseq",
@@ -233,7 +233,7 @@ applied to facet the profiles:
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
 design <- file.path(test.path,"design.txt")
 
-test <- recover(
+test <- recoup(
     input=chip.input,
     design=design,
     region="tss",
@@ -249,7 +249,7 @@ and the following, will produce the last gene body plot with the design applied
 for faceting:
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=chip.input,
     design=design,
     region="genebody",
@@ -263,14 +263,14 @@ test <- recover(
 )
 ```
 
-With recover, you can also apply several orderings of the profiles, like from
+With recoup, you can also apply several orderings of the profiles, like from
 the maximum coverage to the minimum coverage profile, hierarchical clustering
-and others. For further details have a look at the `recover` man page. The 
+and others. For further details have a look at the `recoup` man page. The 
 following will order the profiles according to the sum of the coverage of the
 WT profile in decreasing order. You cal also try the commented out options:
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=chip.input,
     region="tss",
     type="chipseq",
@@ -294,7 +294,7 @@ complexity) and hierarchical clustering ordering (1st profile is reference):
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
 design1 <- read.delim(file.path(test.path,"design.txt"),row.names=1)
 
-test <- recover(
+test <- recoup(
     input=chip.input,
     design=design1[,1],
     region="tss",

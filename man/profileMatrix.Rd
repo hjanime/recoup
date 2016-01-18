@@ -5,17 +5,17 @@
     profileMatrix(input, region, binParams, rc = NULL)
 }
 \arguments{
-    \item{input}{an input list as in \code{\link{recover}} but
+    \item{input}{an input list as in \code{\link{recoup}} but
     with the \code{ranges} the \code{coverage} fields of each 
     member filled (e.g. after using 
     \code{\link{preprocessRanges}} and 
     \code{\link{coverageRef}}).}
 
     \item{region}{see the \code{region} argument in the 
-    main \code{\link{recover}} function.}
+    main \code{\link{recoup}} function.}
     
     \item{binParams}{see the \code{binParams} argument in 
-    the main \code{\link{recover}} function.}
+    the main \code{\link{recoup}} function.}
 
     \item{rc}{fraction (0-1) of cores to use in a multicore 
     system. It defaults to \code{NULL} (no parallelization).}
@@ -25,13 +25,13 @@
 }
 \description{
     This function fills the \code{profile} field in the
-    main \code{input} argument in \code{\link{recover}} 
+    main \code{input} argument in \code{\link{recoup}} 
     function by calculating profile matrices from coverages
     which will be used for plotting.
 }
 \examples{
 # Load some data
-data("recover_test_data",package="recover")
+data("recoup_test_data",package="recoup")
 # Do some work
 testGenomeRanges <- makeGRangesFromDataFrame(df=test.genome,
     keep.extra.columns=TRUE)

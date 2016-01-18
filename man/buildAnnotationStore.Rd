@@ -1,25 +1,25 @@
 \name{buildAnnotationStore}
 \alias{buildAnnotationStore}
-\title{Build a local annotation database for recover}
+\title{Build a local annotation database for recoup}
 \usage{
     buildAnnotationStore(organisms, sources,
-    home = file.path(path.expand("~"), ".recover"),
+    home = file.path(path.expand("~"), ".recoup"),
     forceDownload = TRUE, rc = NULL)
 }
 \arguments{
     \item{organisms}{a character vector of organisms
     for which to download and build annotations. Check 
-    the main \code{\link{recover}} help page for details 
+    the main \code{\link{recoup}} help page for details 
     on supported organisms.}
 
     \item{sources}{a character vector of public sources
     from which to download and build annotations. Check 
-    the main \code{\link{recover}} help page for details 
+    the main \code{\link{recoup}} help page for details 
     on supported annotation sources.}
     
     \item{home}{a valid path (accessible at least by the
     current user) where the annotation database will be 
-    set up. It defaults to \code{".recover"} inside the
+    set up. It defaults to \code{".recoup"} inside the
     current user's home directory.}
     
     \item{forceDownload}{by default, 

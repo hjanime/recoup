@@ -1,8 +1,8 @@
 \docType{data}
 \name{test.genome}
 \alias{test.genome}
-\title{A small gene set (100 genes) for recover testing}
-\format{a \code{data.frame} whose format is accepted by recover.}
+\title{A small gene set (100 genes) for recoup testing}
+\format{a \code{data.frame} whose format is accepted by recoup.}
 \source{
     Ensembl
 }

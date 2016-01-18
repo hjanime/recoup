@@ -6,22 +6,22 @@
         bamParams = NULL, rc = NULL)
 }
 \arguments{
-    \item{input}{an input list as in \code{\link{recover}} but
+    \item{input}{an input list as in \code{\link{recoup}} but
     with the \code{ranges} field of each member filled 
     (e.g. after using \code{\link{preprocessRanges}}).}
 
     \item{preprocessParams}{see the \code{preprocessParams} 
-    argument in the main \code{\link{recover}} function.}
+    argument in the main \code{\link{recoup}} function.}
     
     \item{bamParams}{see the \code{bamParams} argument in 
-    the main \code{\link{recover}} function.}
+    the main \code{\link{recoup}} function.}
 
     \item{rc}{fraction (0-1) of cores to use in a multicore 
     system. It defaults to \code{NULL} (no parallelization).}
 }
 \value{
     This function fills the \code{ranges} field in the
-    main \code{input} argument in \code{\link{recover}} 
+    main \code{input} argument in \code{\link{recoup}} 
     function.
 }
 \description{
@@ -34,7 +34,7 @@
 \dontrun{
     # This example cannot run as it is dependent on the 
     # presence of BAM files not included with the package
-    data("recover_test_data",package="recover")
+    data("recoup_test_data",package="recoup")
     pp <- list(normalize="none",sampleTo=1e+6,
         spliceAction="split",seed=42)
     test.input[[1]]$ranges <- NULL

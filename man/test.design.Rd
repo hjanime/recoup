@@ -1,8 +1,8 @@
 \docType{data}
 \name{test.design}
 \alias{test.design}
-\title{Design file for recover test data}
-\format{a \code{data.frame} whose format is accepted by recover.}
+\title{Design file for recoup test data}
+\format{a \code{data.frame} whose format is accepted by recoup.}
 \source{
     Personal communication with the Talianids lab at BSRC 
     'Alexander Fleming'. Unpublished data.

@@ -1,4 +1,4 @@
-Package: recover
+Package: recoup
 Type: Package
 Title: An R package for the creation of complex genomic 
     profile plots.
@@ -26,11 +26,11 @@ Suggests:
     RSQLite
 Enhances:
     parallel
-Description: recover calculates and plots signal profiles 
+Description: recoup calculates and plots signal profiles 
     created from short sequence reads derived from Next 
     Generation Sequencing technologies. The profiles 
     provided are either sumarized curve profiles or heatmap
-    profiles. Currently, recover supports genomic profile 
+    profiles. Currently, recoup supports genomic profile 
     plots for reads derived from ChIP-Seq and RNA-Seq 
     experiments. The package uses ggplot2 and ComplexHeatmap
     graphics facilities for curve and heatmap coverage 
@@ -39,7 +39,7 @@ License: GPL (>= 3)
 Encoding: UTF-8
 LazyLoad: yes
 LazyData: yes
-URL: https://github.com/pmoulos/recover
+URL: https://github.com/pmoulos/recoup
 biocViews: Software, GeneExpression, Preprocessing, QualityControl, 
     RNASeq, ChIPSeq
 VignetteBuilder: knitr
@@ -50,6 +50,6 @@ Date: 2016-01-18
 Collate:
     'annotation.R'
     'argcheck.R'
-    'recover.R'
+    'recoup.R'
     'plot.R'
     'util.R'

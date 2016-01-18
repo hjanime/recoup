@@ -1,1 +1,1 @@
-BiocGenerics:::testPackage("recover")
+BiocGenerics:::testPackage("recoup")

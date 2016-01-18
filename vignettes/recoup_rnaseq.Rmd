@@ -1,12 +1,12 @@
 <!--
 %\VignetteEngine{knitr::knitr}
-%\VignetteIndexEntry{Using recover with non-continuous regions (RNA-Seq)}
+%\VignetteIndexEntry{Using recoup with non-continuous regions (RNA-Seq)}
 -->
 
 Construction of genomic coverage profiles in non-continuous regions
 ===================================================================
 
-This tutotial demonstrates a few examples of how you can use `recover` to create
+This tutotial demonstrates a few examples of how you can use `recoup` to create
 average genomic cpverage profiles and heatmaps from short read sequences for 
 genomic regions who are non-continuous. Such regions are for example genes of an
 organism where one would like to create the profile of RNA-Seq spliced reads. If
@@ -16,7 +16,7 @@ image. This is also useful but can be achieved much better with other packages
 like [ggbio](http://www.tengfei.name/ggbio/). Most parameters are similar as in
 the ChIP-Seq case. The main parameter that changes is the `type` and then there
 are a few others which control some aspects of coverage generation. For further
-details, have a look at the man page of the `recover` function.
+details, have a look at the man page of the `recoup` function.
 
 The RNA-Seq plots, apart from expression averaging, are also very useful for
 quality control purposes, e.g. RNA-degradation checks. This is not something
@@ -26,19 +26,19 @@ novel and explained very well in other packages like [ngs.plot](https://github.c
 
 The small dataset attached to the package does not contain RNA-Seq data. For the
 rest of this tutorial, it is supposed that you have uncompressed the tar archive
-in a directory called `/home/me/recover_tutorial`. We will use the gene 
-expression data located in `/home/me/recover_tutorial/rnaseq`. Have a look at 
-the [introductory tutorial page](recover_intro.html) for a short description of 
+in a directory called `/home/me/recoup_tutorial`. We will use the gene 
+expression data located in `/home/me/recoup_tutorial/rnaseq`. Have a look at 
+the [introductory tutorial page](recoup_intro.html) for a short description of 
 the test data.
 
-## 2 Running recover with RNA-Seq data
+## 2 Running recoup with RNA-Seq data
 
-As mentioned in the [ChIP-Seq profiles tutorial](recover_chipseq.html), the 
-`recover` function can be run either using a text __tab__ delimited file or a 
+As mentioned in the [ChIP-Seq profiles tutorial](recoup_chipseq.html), the 
+`recoup` function can be run either using a text __tab__ delimited file or a 
 list of lists, which we are using in this case:
 
 ```{r echo=TRUE, eval=TRUE}
-test.path <- "/home/me/recover_tutorial/rnaseq"
+test.path <- "/home/me/recoup_tutorial/rnaseq"
 
 rna.input <- list(
     list(
@@ -77,7 +77,7 @@ scale produced much more smooth profiles than natural scale in the RNA-Seq
 case).
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=rna.input,
     type="rnaseq",
     genome="mm9",
@@ -94,7 +94,7 @@ Like the previous one, but we are making use of the `selector` argument which
 allows some easy subsetting of predefined genomic regions.
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=rna.input,
     design=NULL,
     type="rnaseq",
@@ -111,7 +111,7 @@ test <- recover(
 Like the first one with downsampling normalization and no heatmap output:
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=rna.input,
     design=NULL,
     type="rnaseq",
@@ -128,7 +128,7 @@ test <- recover(
 No design, but k-means clustering:
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=rna.input,
     design=NULL,
     type="rnaseq",
@@ -147,7 +147,7 @@ With a design, narrow flanking, log2 scale,linear normalization:
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
 design <- file.path(test.path,"design_mm9_rna.txt")
 
-test <- recover(
+test <- recoup(
     input=rna.input,
     design=design,
     type="rnaseq",
@@ -164,7 +164,7 @@ test <- recover(
 Ordering:
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recover(
+test <- recoup(
     input=rna.input,
     design=NULL,
     type="rnaseq",

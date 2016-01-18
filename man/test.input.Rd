@@ -1,8 +1,8 @@
 \docType{data}
 \name{test.input}
 \alias{test.input}
-\title{Input test ChIP-Seq data for recover}
-\format{a \code{list} whose format is accepted by recover.}
+\title{Input test ChIP-Seq data for recoup}
+\format{a \code{list} whose format is accepted by recoup.}
 \source{
     Personal communication with the Talianids lab at BSRC 
     'Alexander Fleming'. Unpublished data.

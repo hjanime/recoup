@@ -1,6 +1,6 @@
 \name{calcCoverage}
 \alias{calcCoverage}
-\title{Build a local annotation database for recover}
+\title{Build a local annotation database for recoup}
 \usage{
     calcCoverage(input, mask, strand = NULL,
         ignore.strand = TRUE)
@@ -14,10 +14,10 @@
     object.}
     
     \item{strand}{see the \code{strandedParams} in the 
-    main \code{\link{recover}} function.}
+    main \code{\link{recoup}} function.}
     
     \item{ignore.srand}{see the \code{strandedParams} in 
-    the main \code{\link{recover}} function.}
+    the main \code{\link{recoup}} function.}
 }
 \value{
     A list of \code{\link{Rle}} objects representing the
@@ -43,7 +43,7 @@
 }
 \examples{
 # Load some data
-data("recover_test_data",package="recover")
+data("recoup_test_data",package="recoup")
 
 # Calculate coverage Rle
 mask <- makeGRangesFromDataFrame(df=test.genome,
