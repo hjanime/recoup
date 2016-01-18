@@ -15,7 +15,7 @@
 \arguments{
     \item{input}{an input list as in \code{\link{recover}} but
     with the \code{ranges} field of each member filled 
-    (e.g. after using \code{\link{preprocessRanges}).}
+    (e.g. after using \code{\link{preprocessRanges}}).}
 
     \item{genomeRanges}{the \code{genome} from 
     \code{\link{recover}} as a \code{GRanges} object (e.g. 

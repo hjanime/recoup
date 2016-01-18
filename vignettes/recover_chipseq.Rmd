@@ -1,0 +1,315 @@
+<!--
+%\VignetteEngine{knitr::knitr}
+%\VignetteIndexEntry{Using recover with continuous regions (ChIP-Seq)}
+-->
+
+Construction of genomic coverage profiles in continuous regions
+===============================================================
+
+This tutotial demonstrates a few examples of how you can use `recover` to create
+average genomic cpverage profiles and heatmaps from short read sequences for 
+genomic regions who are continuous. Such regions are ChIP-Seq peak areas, DNA
+methylation areas, PolII profiles over gene bodies or other custom regions which
+are __continuous__ (i.e. not spliced like intron-exon areas). Although most 
+parameters are self-explanarory, this tutorial is mean to be done along with 
+reading the man page of the `recover` function.
+
+## 1 Get some data
+
+The small dataset attached to the package is not realistic and is there only to
+pass the tests and comply with Bioconductor guideines. Creating genomic coverage
+profiles generally takes some time, but not something extreme. All the process
+can be significantly get faster of you work or have access to a system with 
+multiple cores. We are working to make things faster! Any suggestions are most
+welcome!
+
+For the rest of this tutorial, it is supposed that you have uncompressed the tar
+archive in a directory called `/home/me/recover_tutorial`. We will use the 
+H4K20me1 data located in `/home/me/recover_tutorial/chipseq`. Have a look at the
+[introductory tutorial page](recover_intro.html) for a short description of the
+test data.
+
+## 2 Running recover with ChIP-Seq data
+
+The `recover` function can be run either using a text __tab__ delimited file (no
+other delimiters supported at this point) or a list of lists, where each sublist
+has some fields (mandatory and optional) with sample data. Have a look at the 
+`recover` man page for the format of the file and the list. A configuration file
+ example can be found in the downloaded test data archive with the name 
+ `test_config.txt`. It has the following format:
+
+| id              | name            | file                                                  | format | color     |
+|-----------------|-----------------|-------------------------------------------------------|--------|-----------|
+| WT_H4K20me1     | WT H4K20me1     | /home/me/recover_tutorial/chipseq/WT_H4K20me1.bam     | bam    | "#EE0000" |
+| Set8KO_H4K20me1 | Set8KO H4K20me1 | /home/me/recover_tutorial/chipseq/Set8KO_H4K20me1.bam | bam    | "#00BB00" |
+
+In case of a list, it has the same field as the configuration file. An input 
+list example:
+
+```{r echo=TRUE, eval=FALSE}
+test.path <- "/home/me/recover_tutorial/chipseq"
+
+chip.input <- list(
+    list(
+        id="WT_H4K20me1",
+        name="WT H4K20me1",
+        file=file.path(test.path,"WT_H4K20me1.bam"),
+        format="bam"
+    ),
+    list(
+        id="Set8KO_H4K20me1",
+        name="Set8KO H4K20me1",
+        file=file.path(test.path,"Set8KO_H4K20me1.bam"),
+        format="bam"
+    )
+)
+```
+
+With this input, default ggplot2 colors will be used. Otherwise, you can specify
+a color for each sample. The list can also be named, otherwise, the `id` field
+will be used for naming the list.
+
+```{r echo=TRUE, eval=TRUE}
+test.path <- "/home/me/recover_tutorial/chipseq"
+
+chip.input <- list(
+    WT_H4K20me1=list(
+        id="WT_H4K20me1",
+        name="WT H4K20me1",
+        file=file.path(test.path,"WT_H4K20me1.bam"),
+        format="bam",
+        color="#EE0000"
+    ),
+    Set8KO_H4K20me1=list(
+        id="Set8KO_H4K20me1",
+        name="Set8KO H4K20me1",
+        file=file.path(test.path,"Set8KO_H4K20me1.bam"),
+        format="bam",
+        color="#00BB00"
+    )
+)
+```
+
+### TSS profiles
+
+Recover supports several pre-defined and typical locations for creating genomic
+profile plots, like transcription start sites (TSSs) and gene bodies. It also 
+supports several base-pair resolutions (coverage per base or binned). Have a 
+look at the man page for further details.
+
+Firstly, let's point to our custom genomic regions:
+
+```{r echo=TRUE, eval=TRUE}
+genome <- file.path(test.path,"mm9_custom_chr12.txt")
+```
+
+The following will produce a high resolution (coverage per base-pair) H4K20me1 
+WT and Set8 KO TSS profiles. No design is applied. Half of available cores are 
+used (`rc` parameter). If the tutorial system has only one core, then the `rc`
+parameter is ignored. The flanking region is +/-2kb and no normalization is 
+applied (BAM files are sampled from already downsampled initial files).
+
+```{r echo=TRUE, eval=TRUE}
+test <- recover(
+    input=chip.input,
+    region="tss",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    selector=NULL,
+    rc=0.5
+)
+```
+
+The following will produce the previous plot at a lower high resolution. The 
+output heatmaps will have a common signal scale.
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=chip.input,
+    region="tss",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    binParams=list(flankBinSize=0,regionBinSize=100),
+    selector=NULL,
+    plotParams=list(heatmapScale="common"),
+    saveParams=list(ranges=TRUE,coverage=TRUE,profile=TRUE),
+    rc=0.5
+)
+```
+
+Like the previous from a configuration file (not evaluated here):
+
+```{r echo=TRUE, eval=FALSE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=file.path(test.path,"test_config.txt"),
+    region="tss",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    binParams=list(regionBinSize=100),
+    selector=NULL,
+    rc=0.5
+)
+```
+
+The following will produce the previous plot with k-means clustering (4 
+clusters) applied to the profiles. The reference profile (profile to which
+clustering is applied and the resulting order is applied to the other one) is
+the WT one. Design is auto-created.
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=chip.input,
+    region="tss",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    binParams=list(flankBinSize=0,regionBinSize=100),
+    selector=NULL,
+    plotParams=list(heatmap=TRUE,heatmapScale="common"),
+    kmParams=list(k=4,reference="WT_H4K20me1"),
+    rc=0.5
+)
+```
+
+### TSS profiles
+
+The following will produce a high resolution (in the flanks) H4K20me1 WT and 
+Set8 KO gene body profiles. No design is applied. Auto-binning will be applied
+as the gene bodies do not have a constant length. 
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=chip.input,
+    region="genebody",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    binParams=list(flankBinSize=0,regionBinSize=0),
+    selector=NULL,
+    rc=0.5
+)
+```
+
+The previous plot looks a bit unrealistic. To make it look more realistic, we
+narrow the flanking regions by lowering the resolution and setting a lower 
+number of bins for the flanking regions.
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=chip.input,
+    region="genebody",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    binParams=list(flankBinSize=50,regionBinSize=200),
+    selector=NULL,
+    rc=0.5
+)
+```
+
+Same as previous with k-means clustering (k=4):
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=chip.input,
+    region="genebody",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    binParams=list(flankBinSize=50,regionBinSize=200),
+    selector=NULL,
+    kmParams=list(k=4,reference="WT_H4K20me1"),
+    rc=0.5
+)
+```
+
+Let's now look at plots with designs. The following will produce plots like the
+first ones but with a design according to gene expression levels and strand 
+applied to facet the profiles:
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+design <- file.path(test.path,"design.txt")
+
+test <- recover(
+    input=chip.input,
+    design=design,
+    region="tss",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    selector=NULL,
+    rc=0.5
+)
+```
+
+and the following, will produce the last gene body plot with the design applied
+for faceting:
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=chip.input,
+    design=design,
+    region="genebody",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    binParams=list(flankBinSize=50,regionBinSize=200),
+    selector=NULL,
+    preprocessParams=list(normalize="none"),
+    rc=0.5
+)
+```
+
+With recover, you can also apply several orderings of the profiles, like from
+the maximum coverage to the minimum coverage profile, hierarchical clustering
+and others. For further details have a look at the `recover` man page. The 
+following will order the profiles according to the sum of the coverage of the
+WT profile in decreasing order. You cal also try the commented out options:
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=chip.input,
+    region="tss",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    orderBy=list(what="sum1"),
+    #orderBy=list(what="hc1"),
+    #orderBy=list(what="sum2",order="descending"),
+    #orderBy=list(what="max2",order="ascending"),
+    #orderBy=list(what="suma",order="descending"),
+    binParams=list(flankBinSize=50,regionBinSize=100,sumStat="mean",
+        smooth=TRUE,forceHeatmapBinning=FALSE),
+    selector=NULL,
+    rc=0.5
+)
+```
+
+Like above but with a design (reduced by one factor to reduce heatmap plot
+complexity) and hierarchical clustering ordering (1st profile is reference):
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+design1 <- read.delim(file.path(test.path,"design.txt"),row.names=1)
+
+test <- recover(
+    input=chip.input,
+    design=design1[,1],
+    region="tss",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    orderBy=list(what="hc1"),
+    binParams=list(flankBinSize=50,regionBinSize=100,sumStat="mean",
+        smooth=TRUE,forceHeatmapBinning=FALSE),
+    selector=NULL,
+    rc=0.5
+)
+
+## 3 R session information
+
+```{r}
+sessionInfo()
+```

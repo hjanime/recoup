@@ -372,7 +372,7 @@ custom areas using short sequence reads}
     }}
 
     \item{bamParams}{BAM file read parameters passed to 
-    \code{\link{BamFile}. See the related function.
+    \code{\link{BamFile}}. See the related function.
     Currently this is not used.}
 
     \item{onTheFly}{Read short reads directly from BAM files
@@ -639,7 +639,7 @@ test.gb <- recover(
     selector=NULL,
     rc=0.5
 )
-}
+}}
 \author{
     Panagiotis Moulos
 }

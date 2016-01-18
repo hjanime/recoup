@@ -1,8 +1,3 @@
-library(ggplot2)
-library(grid)
-library(ComplexHeatmap)
-library(circlize)
-
 recoverProfile <- function(recoverObj,rc=NULL) {
     # Retrieve data
     input <- recoverObj$data

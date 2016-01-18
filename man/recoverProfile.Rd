@@ -12,8 +12,8 @@
     system. It defaults to \code{NULL} (no parallelization).}
 }
 \value{
-    The function does not return anything. Only the 
-    respective plots are created.
+    The function returns a \code{ggplot2} object with the 
+    created profile plot.
 }
 \description{
     This function takes as input argument and output object

@@ -8,8 +8,8 @@
     \item{input}{an input list as in \code{\link{recover}} but
     with the \code{ranges} the \code{coverage} fields of each 
     member filled (e.g. after using 
-    \code{\link{preprocessRanges} and 
-    \code{\link{coverageRef}).}
+    \code{\link{preprocessRanges}} and 
+    \code{\link{coverageRef}}).}
 
     \item{region}{see the \code{region} argument in the 
     main \code{\link{recover}} function.}

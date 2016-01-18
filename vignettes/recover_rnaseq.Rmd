@@ -1,0 +1,187 @@
+<!--
+%\VignetteEngine{knitr::knitr}
+%\VignetteIndexEntry{Using recover with non-continuous regions (RNA-Seq)}
+-->
+
+Construction of genomic coverage profiles in non-continuous regions
+===================================================================
+
+This tutotial demonstrates a few examples of how you can use `recover` to create
+average genomic cpverage profiles and heatmaps from short read sequences for 
+genomic regions who are non-continuous. Such regions are for example genes of an
+organism where one would like to create the profile of RNA-Seq spliced reads. If
+the ChIP-Seq mode was to be applied in this case, the resulting profiles, 
+although averaged, would be sparse and would simply reflect a Genome Browser 
+image. This is also useful but can be achieved much better with other packages 
+like [ggbio](http://www.tengfei.name/ggbio/). Most parameters are similar as in
+the ChIP-Seq case. The main parameter that changes is the `type` and then there
+are a few others which control some aspects of coverage generation. For further
+details, have a look at the man page of the `recover` function.
+
+The RNA-Seq plots, apart from expression averaging, are also very useful for
+quality control purposes, e.g. RNA-degradation checks. This is not something
+novel and explained very well in other packages like [ngs.plot](https://github.com/shenlab-sinai/ngsplot)
+
+## 1 Get some data
+
+The small dataset attached to the package does not contain RNA-Seq data. For the
+rest of this tutorial, it is supposed that you have uncompressed the tar archive
+in a directory called `/home/me/recover_tutorial`. We will use the gene 
+expression data located in `/home/me/recover_tutorial/rnaseq`. Have a look at 
+the [introductory tutorial page](recover_intro.html) for a short description of 
+the test data.
+
+## 2 Running recover with RNA-Seq data
+
+As mentioned in the [ChIP-Seq profiles tutorial](recover_chipseq.html), the 
+`recover` function can be run either using a text __tab__ delimited file or a 
+list of lists, which we are using in this case:
+
+```{r echo=TRUE, eval=TRUE}
+test.path <- "/home/me/recover_tutorial/rnaseq"
+
+rna.input <- list(
+    list(
+        id="WT",
+        name="WT",
+        file=file.path(test.path,"WT.bam"),
+        format="bam"
+    ),
+    list(
+        id="Set8KO",
+        name="Set8KO",
+        file=file.path(test.path,"Set8KO.bam"),
+        format="bam"
+    )
+)
+```
+
+### RNA-Seq (gene body) profiles
+
+When `type="rnaseq"`, the region is `genebody` by default, so there is no reason
+to specify it. Plotting is done in the same way as other packages: introns are
+removed and exons are placed side-by-side to create a continuous profile. The
+region binning parameters apply here too, with the most important being the
+action to be taken with reads that span splicing junctions. Have a look at the 
+man page for further details.
+
+This tutorial does not use custom genomic regions. It uses the local annotation
+for mouse genes, version mm9. If you wish to run the examples, make sure that
+you have execute `buildAnnotationStore` with ensembl mouse genes at least. This
+is not required as annotation can be created on the fly but takes much more 
+time.
+
+The following will produce an average profile of RNA-Seq reads over gene bodies
+with no design applied and linear normalization across samples (Hint: `log2` 
+scale produced much more smooth profiles than natural scale in the RNA-Seq 
+case).
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=rna.input,
+    type="rnaseq",
+    genome="mm9",
+    flank=c(1000,1000),
+    binParams=list(flankBinSize=50,regionBinSize=100),
+    selector=NULL,
+    preprocessParams=list(normalize="linear"),
+    plotParams=list(signalScale="log2"),
+    rc=0.5
+)
+```
+
+Like the previous one, but we are making use of the `selector` argument which 
+allows some easy subsetting of predefined genomic regions.
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=rna.input,
+    design=NULL,
+    type="rnaseq",
+    genome="mm9",
+    flank=c(1000,1000),
+    binParams=list(flankBinSize=50,regionBinSize=100),
+    selector=list(biotype=c("protein_coding","lincRNA","pseuodgene")),
+    preprocessParams=list(normalize="linear"),
+    plotParams=list(signalScale="log2"),
+    rc=0.5
+)
+```
+
+Like the first one with downsampling normalization and no heatmap output:
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=rna.input,
+    design=NULL,
+    type="rnaseq",
+    genome="mm9",
+    flank=c(1000,1000),
+    binParams=list(flankBinSize=50,regionBinSize=100),
+    selector=NULL,
+    preprocessParams=list(normalize="downsample"),
+    plotParams=list(signalScale="log2",heatmap=FALSE),
+    rc=0.5
+)
+```
+
+No design, but k-means clustering:
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=rna.input,
+    design=NULL,
+    type="rnaseq",
+    genome="mm9",
+    flank=c(1000,1000),
+    binParams=list(flankBinSize=50,regionBinSize=200),
+    selector=NULL,
+    kmParams=list(k=4,reference="WT"),
+    plotParams=list(signalScale="log2",heatmap=FALSE),
+    rc=0.5
+)
+```
+
+With a design, narrow flanking, log2 scale,linear normalization:
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+design <- file.path(test.path,"design_mm9_rna.txt")
+
+test <- recover(
+    input=rna.input,
+    design=design,
+    type="rnaseq",
+    genome="mm9",
+    flank=c(1000,1000),
+    binParams=list(flankBinSize=50,regionBinSize=200),
+    selector=NULL,
+    preprocessParams=list(normalize="linear"),
+    plotParams=list(signalScale="log2"),
+    rc=0.5
+)
+```
+
+Ordering:
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recover(
+    input=rna.input,
+    design=NULL,
+    type="rnaseq",
+    genome="mm9",
+    flank=c(1000,1000),
+    orderBy=list(what="sum1",order="descending"),
+    binParams=list(flankBinSize=50,regionBinSize=100,sumStat="mean",
+        smooth=TRUE,forceHeatmapBinning=FALSE),
+    selector=NULL,
+    plotParams=list(signalScale="log2",heatmapScale="common"),
+    rc=0.5
+)
+```
+
+## 3 R session information
+
+```{r}
+sessionInfo()
+```
+

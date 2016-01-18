@@ -12,8 +12,10 @@
     system. It defaults to \code{NULL} (no parallelization).}
 }
 \value{
-    The function does not return anything. Only the 
-    respective plots are created.
+    The function returns a \code{Heatmap} object with the 
+    created heatmap plot. It can be displayed with the 
+    \code{draw} function of the \code{ComplexHeatmap}
+    package.
 }
 \description{
     This function takes as input argument and output object
