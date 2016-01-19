@@ -14,22 +14,22 @@ are __continuous__ (i.e. not spliced like intron-exon areas). Although most
 parameters are self-explanarory, this tutorial is mean to be done along with 
 reading the man page of the `recoup` function.
 
-## 1 Get some data
+## 1. Get some data
 
 The small dataset attached to the package is not realistic and is there only to
-pass the tests and comply with Bioconductor guideines. Creating genomic coverage
-profiles generally takes some time, but not something extreme. All the process
-can be significantly get faster of you work or have access to a system with 
-multiple cores. We are working to make things faster! Any suggestions are most
-welcome!
+pass the tests and comply with Bioconductor guidelines. Creating genomic 
+coverage profiles generally takes some time, but not something extreme. All the 
+process can be significantly get faster of you work or have access to a system 
+with multiple cores. We are working to make things faster! Any suggestions are 
+most welcome!
 
 For the rest of this tutorial, it is supposed that you have uncompressed the tar
-archive in a directory called `/home/me/recoup_tutorial`. We will use the 
-H4K20me1 data located in `/home/me/recoup_tutorial/chipseq`. Have a look at the
+archive with example data described in the introductory page, in a directory 
+called `/home/me/recoup_tutorial`. We will use the H4K20me1 data located in `/home/me/recoup_tutorial/chipseq`. Have a look at the
 [introductory tutorial page](recoup_intro.html) for a short description of the
 test data.
 
-## 2 Running recoup with ChIP-Seq data
+## 2. Running recoup with ChIP-Seq data
 
 The `recoup` function can be run either using a text __tab__ delimited file (no
 other delimiters supported at this point) or a list of lists, where each sublist
@@ -46,7 +46,9 @@ has some fields (mandatory and optional) with sample data. Have a look at the
 In case of a list, it has the same field as the configuration file. An input 
 list example:
 
-```{r echo=TRUE, eval=FALSE}
+```{r echo=TRUE, eval=TRUE}
+library(recoup)
+
 test.path <- "/home/me/recoup_tutorial/chipseq"
 
 chip.input <- list(
@@ -121,8 +123,8 @@ test <- recoup(
 )
 ```
 
-The following will produce the previous plot at a lower high resolution. The 
-output heatmaps will have a common signal scale.
+The following will produce the previous plot at a lower resolution. The output
+heatmaps will have a common signal scale.
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
 test <- recoup(
@@ -131,9 +133,30 @@ test <- recoup(
     type="chipseq",
     genome=genome,
     flank=c(2000,2000),
-    binParams=list(flankBinSize=0,regionBinSize=100),
+    binParams=list(regionBinSize=100),
     selector=NULL,
     plotParams=list(heatmapScale="common"),
+    saveParams=list(ranges=TRUE,coverage=TRUE,profile=TRUE),
+    rc=0.5
+)
+```
+
+The following will produce the previous plot at a medium resolution. The output
+heatmaps will have a common signal scale and the brightness will be decreased.
+Also, since we know that we have asked for a rather low resolution, we turn the
+`forceHeatmapBinning` parameter off and the profile curve also off as we want to
+demontrate heatmap brightness.
+
+```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+test <- recoup(
+    input=chip.input,
+    region="tss",
+    type="chipseq",
+    genome=genome,
+    flank=c(2000,2000),
+    binParams=list(regionBinSize=200,forceHeatmapBinning=FALSE),
+    selector=NULL,
+    plotParams=list(profile=FALSE,heatmapScale="common",heatmapFactor=0.5),
     saveParams=list(ranges=TRUE,coverage=TRUE,profile=TRUE),
     rc=0.5
 )
@@ -174,7 +197,7 @@ test <- recoup(
 )
 ```
 
-### TSS profiles
+### Gene body profiles
 
 The following will produce a high resolution (in the flanks) H4K20me1 WT and 
 Set8 KO gene body profiles. No design is applied. Auto-binning will be applied
@@ -186,7 +209,7 @@ test <- recoup(
     region="genebody",
     type="chipseq",
     genome=genome,
-    flank=c(2000,2000),
+    flank=c(1000,1000),
     binParams=list(flankBinSize=0,regionBinSize=0),
     selector=NULL,
     rc=0.5
@@ -293,10 +316,12 @@ complexity) and hierarchical clustering ordering (1st profile is reference):
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
 design1 <- read.delim(file.path(test.path,"design.txt"),row.names=1)
+d1 <- as.data.frame(design1[,2])
+rownames(d1) <- rownames(design1)
 
 test <- recoup(
     input=chip.input,
-    design=design1[,1],
+    design=d1,
     region="tss",
     type="chipseq",
     genome=genome,
@@ -308,7 +333,7 @@ test <- recoup(
     rc=0.5
 )
 
-## 3 R session information
+## 3. R session information
 
 ```{r}
 sessionInfo()

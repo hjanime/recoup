@@ -8,36 +8,41 @@ Construction of genomic coverage profiles in non-continuous regions
 
 This tutotial demonstrates a few examples of how you can use `recoup` to create
 average genomic cpverage profiles and heatmaps from short read sequences for 
-genomic regions who are non-continuous. Such regions are for example genes of an
-organism where one would like to create the profile of RNA-Seq spliced reads. If
-the ChIP-Seq mode was to be applied in this case, the resulting profiles, 
-although averaged, would be sparse and would simply reflect a Genome Browser 
-image. This is also useful but can be achieved much better with other packages 
-like [ggbio](http://www.tengfei.name/ggbio/). Most parameters are similar as in
-the ChIP-Seq case. The main parameter that changes is the `type` and then there
-are a few others which control some aspects of coverage generation. For further
-details, have a look at the man page of the `recoup` function.
+genomic regions who are __non-continuous__. Such regions are for example genes 
+of an organism where one would like to create the profile of RNA-Seq spliced 
+reads. If the ChIP-Seq mode was to be applied in this case, the resulting 
+profiles, although averaged, would be sparse and would simply reflect a Genome 
+Browser image. This is also useful but can be achieved much better with other 
+packages like [ggbio](http://www.tengfei.name/ggbio/). Most parameters are 
+similar as in the ChIP-Seq case. The main parameter that changes is the `type` 
+and then there are a few others which control some aspects of coverage 
+generation. For further details, have a look at the man page of the `recoup` 
+function.
 
 The RNA-Seq plots, apart from expression averaging, are also very useful for
 quality control purposes, e.g. RNA-degradation checks. This is not something
-novel and explained very well in other packages like [ngs.plot](https://github.com/shenlab-sinai/ngsplot)
+novel and explained very well in other packages like [ngs.plot](https://github.com/shenlab-sinai/ngsplot). What is novel here, is the
+use of modern R graphics mechanisms in order to easily create and display data
+categories.
 
-## 1 Get some data
+## 1. Get some data
 
 The small dataset attached to the package does not contain RNA-Seq data. For the
 rest of this tutorial, it is supposed that you have uncompressed the tar archive
-in a directory called `/home/me/recoup_tutorial`. We will use the gene 
-expression data located in `/home/me/recoup_tutorial/rnaseq`. Have a look at 
+presented in the introductory page in a directory called 
+`/home/me/recoup_tutorial`. We will use the gene expression data located in `/home/me/recoup_tutorial/rnaseq`. Have a look at 
 the [introductory tutorial page](recoup_intro.html) for a short description of 
 the test data.
 
-## 2 Running recoup with RNA-Seq data
+## 2. Running recoup with RNA-Seq data
 
 As mentioned in the [ChIP-Seq profiles tutorial](recoup_chipseq.html), the 
 `recoup` function can be run either using a text __tab__ delimited file or a 
 list of lists, which we are using in this case:
 
 ```{r echo=TRUE, eval=TRUE}
+library(recoup)
+
 test.path <- "/home/me/recoup_tutorial/rnaseq"
 
 rna.input <- list(
@@ -76,7 +81,7 @@ with no design applied and linear normalization across samples (Hint: `log2`
 scale produced much more smooth profiles than natural scale in the RNA-Seq 
 case).
 
-```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+```{r echo=TRUE, eval=TRUE}
 test <- recoup(
     input=rna.input,
     type="rnaseq",
@@ -142,11 +147,10 @@ test <- recoup(
 )
 ```
 
-With a design, narrow flanking, log2 scale,linear normalization:
-
-```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, eval=FALSE, message=FALSE, warning=FALSE}
+# With a design, narrow flanking, log2 scale,linear normalization:
 design <- file.path(test.path,"design_mm9_rna.txt")
-
+# We remove this example as it's ugly
 test <- recoup(
     input=rna.input,
     design=design,
@@ -179,7 +183,7 @@ test <- recoup(
 )
 ```
 
-## 3 R session information
+## 3. R session information
 
 ```{r}
 sessionInfo()

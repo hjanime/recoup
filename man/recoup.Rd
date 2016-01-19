@@ -22,6 +22,7 @@ custom areas using short sequence reads}
             regionBinSize = 0,
             sumStat = c("mean", "median"),
             smooth = TRUE,
+            interpolation = c("auto", "spline", "linear", "neighborhood"),
             forceHeatmapBinning = TRUE,
             forcedBinSize = c(50, 200)
         ),
@@ -43,6 +44,7 @@ custom areas using short sequence reads}
             heatmap = TRUE,
             signalScale = c("natural", "log2"),
             heatmapScale = c("each", "common"),
+            heatmapFactor = 1,
             device = c("x11", "png", "jpg", "tiff", "bmp",
                 "pdf", "ps"),
             outputDir = ".",
@@ -192,6 +194,14 @@ custom areas using short sequence reads}
         Set to \code{FALSE} for no smoothing. If the 
         reference genomic regions are many, the differences
         are minimal.
+        \item \code{interpolation}: the interpolation 
+        method to be used for coverage interpolation 
+        when the reference regions are of unequal lengths
+        (e.g. gene bodies) and the \code{regionBinSize}
+        is larger than some of the former. Can be 
+        \code{"auto"} (default), \code{"spline"}, 
+        \code{"linear"} or \code{"neighborhood"}. See 
+        Details for further explanations of each option.
         \item \code{forceHeatmapBinning}: if \code{TRUE}
         (default) and the profile resolution is very high
         (see \code{flankBinSize} and \code{regionBinSize}
@@ -276,6 +286,10 @@ custom areas using short sequence reads}
         a common heatmap color scale is calculated for 
         all samples. When \code{"each"}, each heatmap has
         its own color scale.
+        \item \code{heatmapFactor}: a positive numeric 
+        value by which the upper color scale limit of
+        the heatmap profile is multiplied. Defaults to 
+        \code{1}. See Details for further information.
         \item \code{device}: the R plotting device to 
         redirect the plots to. Can be 
         \code{"x11"} (default), \code{"png", "jpg", 
@@ -541,7 +555,43 @@ custom areas using short sequence reads}
     if \code{flankBinSize=50} and \code{regionBinSize=200},
     this setting will create more "realistic" gene body
     profiles as the flanking regions will be squished and
-    the gene body area will look expanded.
+    the gene body area will look expanded. Within the same
+    parameter group is also \code{interpolation}. When 
+    working with reference regions of different lengths
+    (e.g. gene bodies), it happens very often that their 
+    lengths are a little to a lot smaller than the number 
+    of bins into which they should be split and averaged 
+    in order to be able to create the average curve and 
+    heatmap profiles. \code{recoup} allows for dynamic
+    resolutions by permitting to the user to set the 
+    number of bins into which genomic areas will be 
+    binned or by allowing a per-base resolution where 
+    possible. The \code{interpolation} parameter controls
+    what happens in such cases. When \code{"spline"}, the
+    R function \code{\link{spline}} is used, with the
+    default method, to produce a spline interpolation
+    of the same size as the \code{regionBinSize} option
+    and is used as the coverage for that region. When 
+    \code{"linear"}, the procedure is the same as above
+    but using \code{\link{approx}}. When 
+    \code{"neighborhood"}, a number of \code{NA} values 
+    are distributed randomly across the small area 
+    coverage vector, excluding the first and the last
+    two positions, in order to reach \code{regionBinSize}.
+    Then, each \code{NA} position is filled with the mean
+    value of the two values before and the two values
+    after the \code{NA} position, with \code{na.rm=TRUE}.
+    This method should be avoided when >20% of the values
+    of the extended vector are \code{NA}'s as it may cause
+    a crash. However, it should be the most accurate one
+    in the opposite case (few \code{NA}'s). When 
+    \code{"auto"} (the default), a hybrid of 
+    \code{"spline"} and \code{"neighborhood"} is applied.
+    If the \code{NA}'s constitute more than 20% of the 
+    extended vector, \code{"spline"} is used, otherwise
+    \code{"neighborhood"}. None of the above is applied 
+    to regions of equal length as there is no need for 
+    that.
     
     Regarding the usage of \code{selector$id} field, this
     requires some careful usage, as if the ids present 
@@ -593,7 +643,21 @@ custom areas using short sequence reads}
     BED files, however, BED files can contain pre-spliced
     reads using for example BEDTools for conversion.
     
-    Reagrding the usage of \code{saveParams} argument, 
+    Regarding the \code{heatmapFactor} option of 
+    \code{plotParams}, it controls the color scale of the
+    heatmap as follows: the default value (1) causes the
+    extremes of the heatmap colors to be linearly and
+    equally distributed across the actual coverage profile
+    values. If set smaller than 1, the the upper extreme of
+    the coverage values (which by default maps to the upper
+    color point) is multiplied by this factor and this new
+    value is set as the upper color break (limit). This has
+    the effect of decreasing the brightness of the heatmap
+    as color is saturated before reaching the maximum
+    coverage value. If set greater than 1, then the heatmap
+    brightness is increased.
+    
+    Regarding the usage of \code{saveParams} argument, 
     this is useful for several purposes: one is for re-using
     recoup without re-reading BAM/BED files. If the ranges 
     are present in the input object to recoup, they are 

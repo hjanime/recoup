@@ -12,18 +12,68 @@ splitBySeqname <- function(gr) {
     return(gr.list)
 }
 
-splitVector <- function(x,n,seed=42) {
-    # If the length of the original vector is smaller, randomly distribute some
-    # zeros along x and issue a warning
+splitVector <- function(x,n,interp,seed=42) {
     if (length(x)<n) {
-        y <- rep(0,n)
-        set.seed(seed)
-        orig.pos <- sort(sample(n,length(x)))
-        y[orig.pos] <- x
-        warning("Vector to split is shorter than the number of desired bins! ",
-            n-length(x)," 0s will be randomly distributed along the original ",
-            "vector.",immediate.=TRUE)
-        x <- y
+        switch(interp,
+            auto = {
+                d <- (n-length(x))/n
+                if (d < 0.2) { # Then quite safe for neighborhood method
+                    y <- rep(NA,n)
+                    set.seed(seed)
+                    y[1:2] <- x[1:2]
+                    y[(n-1):n] <- x[(length(x)-1):length(x)]
+                    orig.pos <- sort(sample(3:(n-2),length(x)-4))
+                    y[orig.pos] <- x[3:(length(x)-2)]
+                    na <- which(is.na(y))
+                    avinds <- lapply(na,function(z) {
+                        return(c(z-2,z-1,z+1,z+2))
+                    })
+                    xx <- unlist(lapply(avinds,function(ii,yy) {
+                        return(mean(yy[ii],na.rm=TRUE))
+                    },y))
+                    y[na] <- xx
+                    x <- y
+                }
+                else { # Spline is the safest
+                    x <- spline(x,n=n)$y
+                    x[x<0] <- 0
+                }
+            },
+            spline = {
+                x <- spline(x,n=n)$y
+                x[x<0] <- 0
+            },
+            inear = {
+                x <- approx(x,n=n)$y
+                x[x<0] <- 0
+            },
+            neighborhood = {
+                y <- rep(NA,n)
+                set.seed(seed)
+                y[1:2] <- x[1:2]
+                y[(n-1):n] <- x[(length(x)-1):length(x)]
+                orig.pos <- sort(sample(3:(n-2),length(x)-4))
+                y[orig.pos] <- x[3:(length(x)-2)]
+                na <- which(is.na(y))
+                avinds <- lapply(na,function(z) {
+                    return(c(z-2,z-1,z+1,z+2))
+                })
+                xx <- unlist(lapply(avinds,function(ii,yy) {
+                    return(mean(yy[ii],na.rm=TRUE))
+                },y))
+                y[na] <- xx
+            }
+        )
+        #y <- rep(0,n)
+        #y <- rep(NA,n)
+        #set.seed(seed)
+        #orig.pos <- sort(sample(n,length(x)))
+        #y[orig.pos] <- x
+        #warning("Vector to split is shorter than the number of desired bins! ",
+        #    n-length(x)," NAs will be randomly distributed along the original ",
+        #    "vector for compliance and but will be ignored in the final ",
+        #    "profile calculations",immediate.=TRUE)
+        #x <- y
     }
     bin.size <- floor(length(x)/n)
     dif <- length(x) - bin.size*n 
@@ -247,6 +297,7 @@ getDefaultListArgs <- function(arg) {
                 regionBinSize=0,
                 sumStat=c("mean","median"),
                 smooth=TRUE,
+                interpolation=c("auto","spline","linear","neighborhood"),
                 forceHeatmapBinning=TRUE,
                 forcedBinSize=c(50,200)
             ))
@@ -279,6 +330,7 @@ getDefaultListArgs <- function(arg) {
                 heatmap=TRUE,
                 signalScale=c("natural","log2"),
                 heatmapScale=c("each","common"),
+                heatmapFactor=1,
                 device=c("x11","png","jpg","tiff","bmp","pdf","ps"),
                 outputDir=".",
                 outputBase=NULL

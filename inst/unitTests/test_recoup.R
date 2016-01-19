@@ -1,7 +1,7 @@
-test_recover <- function() {
-    data("recover_test_data",package="recover")
+test_recoup <- function() {
+    data("recoup_test_data",package="recoup")
 
-    test.tss <- recover(
+    test.tss <- recoup(
         test.input,
         design=NULL,
         region="tss",
@@ -12,7 +12,7 @@ test_recover <- function() {
         rc=0.5
     )
     
-    test.gb <- recover(
+    test.gb <- recoup(
         test.input,
         design=test.design,
         region="genebody",

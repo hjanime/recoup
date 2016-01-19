@@ -1,14 +1,14 @@
-recoverProfile <- function(recoverObj,rc=NULL) {
+recoupProfile <- function(recoupObj,rc=NULL) {
     # Retrieve data
-    input <- recoverObj$data
-    design <- recoverObj$design
-    opts <- recoverObj$plotopts
+    input <- recoupObj$data
+    design <- recoupObj$design
+    opts <- recoupObj$plotopts
     
     if (is.null(input[[1]]$profile))
         stop("Profile matrix not found in the input object! Are you sure you ",
-            "saved it while running the main recover function? This may occur ",
-            "when using recoverProfile and/or recoverHeatmap on an object ",
-            "returned by recover having changed the default saveParams ",
+            "saved it while running the main recoup function? This may occur ",
+            "when using recoupProfile and/or recoupHeatmap on an object ",
+            "returned by recoup having changed the default saveParams ",
             "parameter")
     
     # Create the x-axis breaks and labels
@@ -223,16 +223,16 @@ recoverProfile <- function(recoverObj,rc=NULL) {
    return(ggplot.plot)
 }
 
-recoverHeatmap <- function(recoverObj,rc=NULL) {
-    input <- recoverObj$data
-    design <- recoverObj$design
-    opts <- recoverObj$plotopts
+recoupHeatmap <- function(recoupObj,rc=NULL) {
+    input <- recoupObj$data
+    design <- recoupObj$design
+    opts <- recoupObj$plotopts
     
     if (is.null(input[[1]]$profile))
         stop("Profile matrix not found in the input object! Are you sure you ",
-            "saved it while running the main recover function? This may occur ",
-            "when using recoverProfile and/or recoverHeatmap on an object ",
-            "returned by recover having changed the default saveParams ",
+            "saved it while running the main recoup function? This may occur ",
+            "when using recoupProfile and/or recoupHeatmap on an object ",
+            "returned by recoup having changed the default saveParams ",
             "parameter")
     
     width <- ncol(input[[1]]$profile)
@@ -283,11 +283,12 @@ recoverHeatmap <- function(recoverObj,rc=NULL) {
                 if (sup!=0)
                     break
             }
+            supp <- opts$yAxisParams$heatmapFactor * sup
             if (!is.null(profileColors))
-                colorFuns[[n]] <- colorRamp2(c(0,sup),c("white",
+                colorFuns[[n]] <- colorRamp2(c(0,supp),c("white",
                     input[[n]]$color))
             else
-                colorFuns[[n]] <- colorRamp2(c(0,sup),c("white","red2"))
+                colorFuns[[n]] <- colorRamp2(c(0,supp),c("white","red2"))
         }
     }
     else if (opts$yAxisParams$heatmapScale=="common") {
@@ -295,12 +296,13 @@ recoverHeatmap <- function(recoverObj,rc=NULL) {
             return(quantile(x$profile,0.95))
         }))
         sup <- max(sups)
+        supp <- opts$yAxisParams$heatmapFactor * sup
         for (n in names(colorFuns)) {
             if (!is.null(profileColors))
-                colorFuns[[n]] <- colorRamp2(c(0,sup), c("white",
+                colorFuns[[n]] <- colorRamp2(c(0,supp), c("white",
                     input[[n]]$color))
             else
-                colorFuns[[n]] <- colorRamp2(c(0,sup), c("white","red2"))
+                colorFuns[[n]] <- colorRamp2(c(0,supp), c("white","red2"))
         }
     }
     
@@ -516,11 +518,6 @@ orderProfiles <- function(input,opts,rc=NULL) {
                 else
                     return(as.numeric(y[mp]))
             },rc=rc))
-            #print(theCov)
-            #print(theVal)
-            #print(length(theCov))
-            #print(length(theVal))
-            #print(length(rownames(input[[refh]]$profile)))
             names(theVal) <- rownames(input[[refh]]$profile)
         }
         if (opts$orderBy$order=="descending")
@@ -635,6 +632,8 @@ orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
 makeHorizontalAnnotation <- function(width,opts) {
     fl <- opts$xAxisParams$flank
     fl[1] <- -fl[1]
+    if (opts$binParams$forceHeatmapBinning)
+        opts$binParams$flankBinSize <- opts$binParams$forcedBinSize[1]
     edgeLabels <- paste(round(fl/1000,1),"kb",sep="")
     switch(opts$xAxisParams$region,
         tss = {

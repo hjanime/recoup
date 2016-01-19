@@ -7,11 +7,11 @@ created the need for new NGS data analytics tools which are able to offer
 comprehensive and at the same time flexible visualizations under several 
 experimental settings and factors. An established visualization tool in NGS
 experiments is the visualization of the signal created by short reads after the
-application of every NGS protocol. Genome Browser (e.g. the UCSC Genome Browser)
-serve very well this purpose considering single genomic areas. They are very 
-good when it comes to the visualization of the abundance of a single or a few
-genes or the strength of a few protein-DNA interaction sites. However, when it
-comes to the visualization of average signal profiles over multiple genomic 
+application of every NGS protocol. Genome Browsers (e.g. the UCSC Genome 
+Browser) serve very well this purpose considering single genomic areas. They are
+very good when it comes to the visualization of the abundance of a single or a 
+few genes or the strength of a few protein-DNA interaction sites. However, when 
+it comes to the visualization of average signal profiles over multiple genomic 
 locations (gene regions or others like DNA methylation sites or transcription
 factor binding sites), Genome Browsers fail to depict such information in a 
 comprehensive way. Furthermore, they cannot visualize average signal profiles of
@@ -26,50 +26,48 @@ genomic regions of interest, summarize them by binning/averaging overlaps to
 control the resolution of final graphics etc. This procedure often requires the
 usage of multiple tools and custom scripts with multiple steps. One of the most
 comprehensive and easy-to-use tools up to date is 
-[ngs.plot](https://github.com/shenlab-sinai/ngsplot). It is sufficiently fast for 
-most applications and has a low memory footprint which allows users to run it in 
-low end machines too. It is command line based and users can run it by using
-a simple configuration file most of the times, has a rich database of genome
-annotation and genomic features and uses R/Bioconductor for underlying 
+[ngs.plot](https://github.com/shenlab-sinai/ngsplot). It is sufficiently fast 
+for most applications and has a low memory footprint which allows users to run 
+it in low end machines too. It is command line based and users can run it by 
+using a simple configuration file most of the times, has a rich database of 
+genome annotation and genomic features and uses R/Bioconductor for underlying 
 calculations and plotting of profiles. However, ngs.plot is not up to date with 
-modern R graphics systems like `ggplot2` and `ComplexHeatmap`. As a result, among
-others, it is impossible to create faceted genomic profiles using a statistical
-design and in such cases, a lot of additional manual work and computational
-time is required in order to reach the desired outcomes. The same applies to 
-heatmap profiles. Furthermore, the resolution of genomic profiles (e.g. per
-base coverage or per bin of base-pairs coverage) cannot be controlled and this
-can cause problems in cases where extreme levels of resolution (e.g. DNAse-Seq
-experiments) is required to reach meaningful biological conclusions. Last but 
-not least, ngs.plot requires a not so straightforward setup in order to run, 
-it does not run in a unified environment (e.g. R environment) and in some cases
-produces oversized and complex output.
+modern R graphics systems like `ggplot2` and `ComplexHeatmap`. As a result, 
+among others, it is impossible to create faceted genomic profiles using a 
+statistical design and in such cases, a lot of additional manual work and 
+computational time is required in order to reach the desired outcomes. The same 
+applies to heatmap profiles. Furthermore, the resolution of genomic profiles 
+(e.g. per base coverage or per bin of base-pairs coverage) cannot be controlled 
+and this can cause problems in cases where extreme levels of resolution (e.g. 
+DNAse-Seq experiments) is required to reach meaningful biological conclusions. 
+Last but not least, ngs.plot requires a not so straightforward setup in order 
+to run, does not run in a unified working environment (e.g. R environment with
+its graphics displaying mechanisms) and in some cases produces oversized and 
+complex output.
 
-The recoup package comes to fill such gaps by stepping on the shoulder of 
+The recoup package comes to fill such gaps by stepping on the shoulders of 
 giants. It uses the now standardized and stable Bioconductor facilities to read
 and import short reads from BAM/BED files and also modern R graphics systems,
-namely [ggplot2](http://ggplot2.org/) and [ComplexHeatmap] 
-(https://github.com/jokergoo/ComplexHeatmap) in order to create comprehensive
-averaged genomic profiles and genomic profile heatmaps. In addition it offers a
-lot of (easy to use) customization options and automation at various levels.
-Inexperienced users can gather their data in a simple text file and just choose
-one of the supported organisms and recoup does the rest for them. More 
-experienced users can play with several options and provide more flexible input
-so as to produce optimal results. This vignette, although it covers basic usage
-of the package, it offers tha basis for more sophisticated usage. recoup is not
-as fast as ngs.plot but we are working on this! Also, recoup is not here to 
-replace other more mature packages. It is here to offer more options to users
-that need more sophisticated genomic profile visualizations.
+namely [ggplot2](http://ggplot2.org/) and
+[ComplexHeatmap](https://github.com/jokergoo/ComplexHeatmap) in order to create 
+comprehensive averaged genomic profiles and genomic profile heatmaps. In 
+addition it offers a lot of (easy to use) customization options and automation 
+at various levels. Inexperienced users can gather their data in a simple text 
+file and just choose one of the supported organisms and recoup does the rest 
+for them. More experienced users can play with several options and provide more 
+flexible input so as to produce optimal results. This vignette, although it 
+covers basic usage of the package, it offers the basis for more sophisticated 
+usage. recoup is not as fast as ngs.plot but we are working on this! Also, 
+recoup is not here to replace other more mature packages. It is here to offer 
+more options to users that need more sophisticated genomic profile 
+visualizations.
 
 ## 1 Getting started
 
 Detailed instructions on how to run the recoup genomic profile creation 
 pipeline can be found under the main documentation of the package:
 
-```{r}
-library(recoup)
 ```
-
-```{r eval=FALSE}
 library(recoup)
 help(recoup)
 ```
@@ -98,7 +96,7 @@ of those in the reference genomic regions.
 The package contains a small dataset which serves only for package building and
 testing purposes as well as complying with Bioconductor guidelines. These data
 are useful for the user to check how the input data to recoup should look like.
-For a more complete test dataset (a small one) have a look 
+For a more complete test dataset (a small one) have a look and download from
 [here](https://drive.google.com/file/d/0BxxrqIl3Nb0NSVNqdGNPa3M3cnc/view?usp=sharing)
 
 ## 2 Getting some data
@@ -149,9 +147,10 @@ should run the function `buildAnnotationStore` with a list of organisms, a list
 of annotation sources (Ensembl, RefSeq and UCSC supported) and a desired path to
 store the annotations (defaults to `/home/me/.recoup`). For example:
 
-```{r echo=TRUE, eval=FALSE}
+```
 buildAnnotationStore(c("hg19","mm9","rn4"),c("ensembl","refseq"))
 ```
+
 See the man page of `buildAnnotationStore` for more details. This step is not
 necessary for recoup to run as these annotations can be also downloaded on the
 fly. However, if subsets of the supported organisms are to be used often, it is

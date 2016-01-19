@@ -148,7 +148,8 @@ validateListArgs <- function(what,arg.list) {
         },
         binParams = {
             valid.1 <- names(arg.list) %in% c("flankBinSize","regionBinSize",
-                "sumStat","smooth","forceHeatmapBinning","forcedBinSize")
+                "sumStat","smooth","interpolation","forceHeatmapBinning",
+                "forcedBinSize")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
@@ -179,6 +180,15 @@ validateListArgs <- function(what,arg.list) {
                             if (!is.logical(arg.list$smooth))
                                 stop("The smooth option of binParams ",
                                     "parameter must be TRUE or FALSE!")
+                        },
+                        interpolation = {
+                            arg.list$interpolation <- 
+                                tolower(arg.list$interpolation[1])
+                            checkTextArgs(
+                                "The interpoloation option of binParams",
+                                arg.list$interpolation,
+                                c("auto","spline","linear","neighborhood")
+                            )
                         },
                         forceHeatmapBinning = {
                             if (!is.logical(arg.list$forceHeatmapBinning))
@@ -267,7 +277,8 @@ validateListArgs <- function(what,arg.list) {
         },
         plotParams = {
             valid.1 <- names(arg.list) %in% c("profile","heatmap","device",
-                "signalScale","heatmapScale","outputDir","outputBase")
+                "signalScale","heatmapScale","heatmapFactor","outputDir",
+                "outputBase")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
@@ -312,6 +323,12 @@ validateListArgs <- function(what,arg.list) {
                                 "The signalScale option of plotParams",
                                 arg.list$heatmapScale,
                                 c("each","common")
+                            )
+                        },
+                        heatmapFactor = {
+                            checkNumArgs(
+                                "The heatmapFactor option of plotParams",
+                                arg.list$heatmapFactor,"numeric",0,"gt"
                             )
                         },
                         outputDir = {

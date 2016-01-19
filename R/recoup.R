@@ -1,9 +1,4 @@
-require(parallel)
-require(GenomicRanges)
-require(GenomicAlignments)
-require(rtracklayer)
-
-recover <- function(
+recoup <- function(
     input,
     design=NULL,
     region=c("genebody","tss","tes","custom"),
@@ -21,6 +16,7 @@ recover <- function(
         regionBinSize=0,
         sumStat=c("mean","median"),
         smooth=TRUE,
+        interpolation=c("auto","spline","linear","neighborhood"),
         forceHeatmapBinning=TRUE,
         forcedBinSize=c(50,200)
     ),
@@ -41,6 +37,7 @@ recover <- function(
         heatmap=TRUE,
         signalScale=c("natural","log2"),
         heatmapScale=c("common","each"),
+        heatmapFactor=1,
         device=c("x11","png","jpg","tiff","bmp","pdf","ps"),
         outputDir=".",
         outputBase=NULL
@@ -88,7 +85,7 @@ recover <- function(
     ),
     bamParams=NULL,
     onTheFly=FALSE, # Directly from BAM w/o Ranges storing, also N/A with BED,
-    localDbHome=file.path(path.expand("~"),".recover"),
+    localDbHome=file.path(path.expand("~"),".recoup"),
     rc=NULL
 ) {
     if (!is.list(input) && file.exists(input))
@@ -409,7 +406,7 @@ recover <- function(
     if (kmParams$k>0) {
         if (is.null(kmParams$reference)) {
             # Merge matrices to one and perform k-means. As normally coverages 
-            # are normalized (the user is responsible to tell recover how to do 
+            # are normalized (the user is responsible to tell recoup how to do 
             # this and has been done at this point), we are legalized to do that
             message("Performing k-means (k=",kmParams$k,") clustering on ",
                 "total profiles")
@@ -445,11 +442,11 @@ recover <- function(
     # Coverages and profiles calculated... Now depending on plot option, we go 
     # further or return the enriched input object for saving
     if (!plotParams$profile && !plotParams$heatmap) {
-        recoverObj <- toOutput(input,design,saveParams)
-        return(recoverObj)
+        recoupObj <- toOutput(input,design,saveParams)
+        return(recoupObj)
     }
     else
-        recoverObj <- toOutput(input,design,
+        recoupObj <- toOutput(input,design,
             list(ranges=TRUE,coverage=TRUE,profile=TRUE))
     
     # Attach some config options for profile and heatmap
@@ -461,18 +458,19 @@ recover <- function(
         ),
         yAxisParams=list(
             signalScale=plotParams$signalScale,
-            heatmapScale=plotParams$heatmapScale
+            heatmapScale=plotParams$heatmapScale,
+            heatmapFactor=plotParams$heatmapFactor
         ),
         binParams=binParams,
         orderBy=orderBy,
         complexHeatmapParams=complexHeatmapParams
     )
-    recoverObj$plotopts <- plotOpts
+    recoupObj$plotopts <- plotOpts
     
     # We must pass the matrices to plotting function
     if (plotParams$profile) {
         message("Constructing genomic coverage profile curve")
-        theProfile <- recoverProfile(recoverObj,rc=rc)
+        theProfile <- recoupProfile(recoupObj,rc=rc)
         if (plotParams$device=="x11") {
             dev.new()
             plot(theProfile)
@@ -517,7 +515,7 @@ recover <- function(
         
         if (binParams$forceHeatmapBinning 
             && (binParams$regionBinSize==0 || binParams$flankBinSize==0)) {
-            helpInput <- recoverObj$data
+            helpInput <- recoupObj$data
             if (region %in% c("tss","tes") || customOne) {
                 for (n in names(helpInput)) {
                     message("Calculating ",region," profile for ",
@@ -550,12 +548,12 @@ recover <- function(
             }
         }
         else
-            helpInput <- recoverObj$data
+            helpInput <- recoupObj$data
         
-        helpObj <- recoverObj
+        helpObj <- recoupObj
         helpObj$data <- helpInput
         message("Constructing genomic coverage heatmap")
-        theHeatmap <- recoverHeatmap(helpObj,rc=rc)
+        theHeatmap <- recoupHeatmap(helpObj,rc=rc)
         
         # Derive the main heatmap in case of hierarchical clustering        
         mainh <- 1
@@ -595,7 +593,7 @@ recover <- function(
     }
     
     # Return the enriched input object according to save options
-    return(toOutput(input,design,saveParams))
+    return(toOutput(input,design,saveParams,plotOpts))
 }
 
 coverageRef <- function(input,genomeRanges,region=c("tss","tes","genebody",
@@ -873,14 +871,17 @@ profileMatrix <- function(input,region,binParams,rc=NULL) {
             message("Calculating ",region," profile for ",input[[n]]$name)
             message(" center")
             center <- binCoverageMatrix(input[[n]]$coverage$center,
-                binSize=binParams$regionBinSize,stat=binParams$sumStat,rc=rc)
+                binSize=binParams$regionBinSize,stat=binParams$sumStat,
+                interpolation=binParams$interpolation,rc=rc)
             if (binParams$flankBinSize!=0) {
                 message(" upstream")
                 left <- binCoverageMatrix(input[[n]]$coverage$upstream,
-                    binSize=binParams$flankBinSize,stat=binParams$sumStat,rc=rc)
+                    binSize=binParams$flankBinSize,stat=binParams$sumStat,
+                    interpolation=binParams$interpolation,rc=rc)
                 message(" downstream")
                 right <- binCoverageMatrix(input[[n]]$coverage$downstream,
-                    binSize=binParams$flankBinSize,stat=binParams$sumStat,rc=rc)
+                    binSize=binParams$flankBinSize,stat=binParams$sumStat,
+                    interpolation=binParams$interpolation,rc=rc)
             }
             else {
                 message(" upstream")
@@ -933,8 +934,9 @@ baseCoverageMatrix <- function(cvrg,rc=NULL) {
 }
 
 binCoverageMatrix <- function(cvrg,binSize=1000,stat=c("mean","median"),
-    rc=NULL) {
+    interpolation=c("auto","spline","linear","neighborhood"),rc=NULL) {
     stat <- stat[1]
+    interpolation=interpolation[1]
     tmp <- cmclapply(cvrg,function(x) {
         if (class(x)=="Rle")
             return(as.numeric(x))
@@ -946,7 +948,7 @@ binCoverageMatrix <- function(cvrg,binSize=1000,stat=c("mean","median"),
             tmp[[j]] <- fill
         }
     }
-    tmp <- cmclapply(tmp,function(x) splitVector(x,binSize),rc=rc)
+    tmp <- cmclapply(tmp,function(x) splitVector(x,binSize,interpolation),rc=rc)
     if (stat=="mean") {
         statMatrix <- do.call("rbind",cmclapply(tmp,function(x) 
             unlist(lapply(x,function(y) mean(y))),rc=rc))
