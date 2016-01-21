@@ -7,8 +7,9 @@
         input, 
         genomeRanges, 
         helperRanges,
-        flank = c(2000, 2000),
-        strandedParams = list(strand=NULL, ignoreStrand=TRUE)
+        flank,
+        strandedParams = list(strand=NULL, ignoreStrand=TRUE),
+        bamParams = NULL
     )
 }
 \arguments{
@@ -43,7 +44,6 @@
     function.
 }
 \examples{
-\dontrun{
 # Load some data
 data("recoup_test_data",package="recoup")
 
@@ -63,7 +63,7 @@ test.input <- coverageRnaRef(
     helperRanges=testGenomeRanges,
     flank=c(2000,2000)
 )
-}}
+}
 \author{
     Panagiotis Moulos
 }

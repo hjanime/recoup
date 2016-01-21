@@ -16,11 +16,11 @@
     \item{strand}{see the \code{strandedParams} in the 
     main \code{\link{recoup}} function.}
     
-    \item{ignore.srand}{see the \code{strandedParams} in 
+    \item{ignore.strand}{see the \code{strandedParams} in 
     the main \code{\link{recoup}} function.}
 }
 \value{
-    A list of \code{\link{Rle}} objects representing the
+    A list of \code{Rle} objects representing the
     genomic coverages of interest.
 }
 \description{

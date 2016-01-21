@@ -11,6 +11,7 @@ recoup <- function(
         what=c("none","suma","sumn","maxa","maxn","hcn"),
         order=c("descending","ascending")
     ),
+    #orderBy=getDefaultListArgs("orderBy"),
     binParams=list(
         flankBinSize=0,
         regionBinSize=0,
@@ -20,11 +21,13 @@ recoup <- function(
         forceHeatmapBinning=TRUE,
         forcedBinSize=c(50,200)
     ),
+    #binParams=getDefaultListArgs("binParams"),
     selector=list(
         id=NULL,
         biotype=getBiotypes(genome),
         exonType=NULL
     ),
+    #selector=getDefaultListArgs("selector"),
     preprocessParams=list(
         normalize=c("none","linear","downsample","sampleto"),
         sampleTo=1e+6,
@@ -32,7 +35,9 @@ recoup <- function(
         spliceRemoveQ=0.75,
         seed=42
     ),
+    #preprocessParams=getDefaultListArgs("preprocessParams"),
     plotParams=list(
+        plot=TRUE,
         profile=TRUE,
         heatmap=TRUE,
         signalScale=c("natural","log2"),
@@ -42,16 +47,20 @@ recoup <- function(
         outputDir=".",
         outputBase=NULL
     ),
+    #plotParams=getDefaultListArgs("plotParams"),
     saveParams=list(
         ranges=TRUE,
         coverage=TRUE,
-        profile=TRUE
+        profile=TRUE,
+        profilePlot=TRUE,
+        heatmapPlot=TRUE
     ),
+    #saveParams=getDefaultListArgs("saveParams"),
     complexHeatmapParams=list(
         main=list(
             cluster_rows=ifelse(length(grep("hc",orderBy$what))>0,TRUE,FALSE),
             cluster_columns=FALSE,
-            column_title_gp=gpar(fontsize=12,font=2),
+            column_title_gp=grid::gpar(fontsize=12,font=2),
             show_row_names=FALSE,
             show_column_names=FALSE,
             heatmap_legend_param=list(
@@ -61,16 +70,17 @@ recoup <- function(
         group=list(
             cluster_rows=ifelse(length(grep("hc",orderBy$what))>0,TRUE,FALSE),
             cluster_columns=FALSE,
-            column_title_gp=gpar(fontsize=12,font=2),
+            column_title_gp=grid::gpar(fontsize=12,font=2),
             show_row_names=FALSE,
             show_column_names=FALSE,
-            row_title_gp=gpar(fontsize=10,font=2),
+            row_title_gp=grid::gpar(fontsize=10,font=2),
             gap=unit(5,"mm"),
             heatmap_legend_param=list(
                 color_bar="continuous"
             )
         )
     ),
+    #complexHeatmapParams=getDefaultListArgs("complexHeatmapParams"),
     kmParams=list(
         k=0, # Do not perform kmeans
         nstart=20,
@@ -79,10 +89,12 @@ recoup <- function(
         reference=NULL,
         seed=42
     ),
+    #kmParams=getDefaultListArgs("kmParams"),
     strandedParams=list(
         strand=NULL,
         ignoreStrand=TRUE
     ),
+    #strandedParams=getDefaultListArgs("strandedParams"),
     bamParams=NULL,
     onTheFly=FALSE, # Directly from BAM w/o Ranges storing, also N/A with BED,
     localDbHome=file.path(path.expand("~"),".recoup"),
@@ -119,18 +131,6 @@ recoup <- function(
             "genebodies! Switching to genebody regions...",immediate.=TRUE)
         region <- "genebody"
     }
-    
-    ## tolower of first
-    #binParams$sumStat <- tolower(binParams$sumStat[1])
-    #preprocessParams$normalize <- tolower(preprocessParams$normalize[1])
-    #preprocessParams$spliceAction <- tolower(preprocessParams$spliceAction[1])
-    #print(preprocessParams$spliceAction)
-    #plotParams$signalScale <- tolower(plotParams$signalScale[1])
-    #plotParams$heatmapScale <- tolower(plotParams$heatmapScale[1])
-    #plotParams$device <- tolower(plotParams$device[1])
-    #kmParams$algorithm <- kmParams$algorithm[1]
-    #orderBy$what <- tolower(orderBy$what[1])
-    #orderBy$order <- tolower(orderBy$order[1])
     
     # and list arguments
     orderByDefault <- getDefaultListArgs("orderBy")
@@ -320,9 +320,8 @@ recoup <- function(
     # Here we must write code for the reading and normalization of bam files
     # The preprocessRanges function looks if there is a valid (not null) ranges
     # field in input
-    if (!onTheFly)
-        input <- preprocessRanges(input,preprocessParams,bamParams=bamParams,
-            rc=rc)
+    #if (!onTheFly)
+    input <- preprocessRanges(input,preprocessParams,bamParams=bamParams,rc=rc)
 
     # Remove unwanted seqnames from reference ranges
     chrs <- unique(unlist(lapply(input,function(x) {
@@ -336,9 +335,15 @@ recoup <- function(
         keeph <- which(as.character(seqnames(helperRanges)) %in% chrs)
         helperRanges <- helperRanges[keeph]
         genomeRanges <- genomeRanges[names(helperRanges)]
-        lens <- which(lengths(genomeRanges)==0)
-        if (length(lens)>0)
-            genomeRanges[lens] <- NULL
+        ########################################################################
+        ## There must be an R bug with `lengths` here as although it runs in 
+        ## Rcmd, it does not pass package building or vignette kniting... But 
+        ## for the time being it seems that it is not needed as the name 
+        ## filtering works
+        #lens <- which(lengths(genomeRanges)==0)
+        #if (length(lens)>0)
+        #    genomeRanges[lens] <- NULL
+        ########################################################################
     }
     
     # Now we must follow two paths according to region type, genebody and custom
@@ -347,7 +352,8 @@ recoup <- function(
     if (region=="custom" && all(width(genomeRanges)==1))
         customOne <- FALSE
     if (type=="chipseq")
-        input <- coverageRef(input,genomeRanges,region,flank,strandedParams)#,bamParams)
+        input <- coverageRef(input,genomeRanges,region,flank,strandedParams)
+            #,bamParams)
     else if (type=="rnaseq")
         input <- coverageRnaRef(input,genomeRanges,helperRanges,flank,
             strandedParams)#,bamParams)
@@ -439,17 +445,8 @@ recoup <- function(
         }
     }
     
-    # Coverages and profiles calculated... Now depending on plot option, we go 
-    # further or return the enriched input object for saving
-    if (!plotParams$profile && !plotParams$heatmap) {
-        recoupObj <- toOutput(input,design,saveParams)
-        return(recoupObj)
-    }
-    else
-        recoupObj <- toOutput(input,design,
-            list(ranges=TRUE,coverage=TRUE,profile=TRUE))
-    
-    # Attach some config options for profile and heatmap
+    # Attach some config options for profile and heatmap. irrespectively of 
+    # subsequent plotting
     plotOpts <- list(
         xAxisParams=list(
             region=region,
@@ -465,20 +462,25 @@ recoup <- function(
         orderBy=orderBy,
         complexHeatmapParams=complexHeatmapParams
     )
-    recoupObj$plotopts <- plotOpts
+    
+    # Coverages and profiles calculated... Now depending on plot option, we go 
+    # further or return the enriched input object for saving
+    if (!plotParams$profile && !plotParams$heatmap) {
+        recoupObj <- toOutput(input,design,saveParams,plotOpts)
+        return(recoupObj)
+    }
+    else
+        recoupObj <- toOutput(input,design,
+            list(ranges=TRUE,coverage=TRUE,profile=TRUE),plotOpts)
+            
+    ## Our plot objects
+    recoupPlots <- list()
     
     # We must pass the matrices to plotting function
     if (plotParams$profile) {
         message("Constructing genomic coverage profile curve")
         theProfile <- recoupProfile(recoupObj,rc=rc)
-        if (plotParams$device=="x11") {
-            dev.new()
-            plot(theProfile)
-        }
-        else
-            ggsave(filename=paste(plotParams$outputBase,"_profile.",
-                plotParams$device,sep=""),plot=theProfile,
-                path=plotParams$outputDir)
+        recoupPlots$profilePlot <- theProfile
     }
     
     # Some default binning MUST be applied for the heatmap... Otherwise it could
@@ -554,6 +556,7 @@ recoup <- function(
         helpObj$data <- helpInput
         message("Constructing genomic coverage heatmap")
         theHeatmap <- recoupHeatmap(helpObj,rc=rc)
+        recoupPlots$heatmapPlot <- theHeatmap
         
         # Derive the main heatmap in case of hierarchical clustering        
         mainh <- 1
@@ -573,27 +576,17 @@ recoup <- function(
             else
                 mainh <- mh
         }
-        
-        if (plotParams$device=="x11") {
-            dev.new()
-            draw(theHeatmap,gap=unit(1,"cm"),main_heatmap=mainh)
-        }
-        else {
-            # Starting from width=4, we add 1.5 inches for each heatmap
-            iw <- 4 + (length(input)-1)*1.5
-            if (plotParams$device == "pdf")
-                graphicsOpen(plotParams$device,paste(plotParams$outputBase,
-                    "_heatmap.",plotParams$device,sep=""),width=iw)
-            else
-                graphicsOpen(plotParams$device,paste(plotParams$outputBase,
-                    "_heatmap.",plotParams$device,sep=""),width=iw,units="in")
-            draw(theHeatmap,gap=unit(1,"cm"),main_heatmap=mainh)
-            graphicsClose(plotParams$device)
-        }
     }
     
+    # Overwrite final object so as to return it
+    recoupObj <- toOutput(input,design,saveParams,plotOpts,recoupPlots)
+    
+    # Make make any plots asked
+    if (plotParams$plot)
+        recoupPlot(recoupObj,plotParams,mainh)
+    
     # Return the enriched input object according to save options
-    return(toOutput(input,design,saveParams,plotOpts))
+    return(recoupObj)
 }
 
 coverageRef <- function(input,genomeRanges,region=c("tss","tes","genebody",
@@ -614,8 +607,8 @@ coverageRef <- function(input,genomeRanges,region=c("tss","tes","genebody",
         }
     }
     else # is genebody
-        input <- coverageAreaRef(input,genomeRanges,region,flank,strandedParams)#,
-            #bamParams)
+        input <- coverageAreaRef(input,genomeRanges,region,flank,strandedParams)
+            #,bamParams)
     return(input)
 }
 
@@ -987,7 +980,8 @@ applySelectors <- function(ranges,selector,rc=NULL) {
     return(ranges)
 }
 
-toOutput <- function(input,design=NULL,saveParams,plotParams=NULL) {
+toOutput <- function(input,design=NULL,saveParams,plotParams=NULL,
+    plotObjs=NULL) {
     if (!saveParams$ranges) {
         for (i in 1:length(input))
             input[[i]]$ranges <- NULL
@@ -1000,10 +994,16 @@ toOutput <- function(input,design=NULL,saveParams,plotParams=NULL) {
         for (i in 1:length(input))
             input[[i]]$profile <- NULL
     }
+    plots <- list()
+    if (!is.null(plotObjs) && saveParams$profilePlot)
+        plots$profile <- plotObjs$profilePlot
+    if (!is.null(plotObjs) && saveParams$heatmapPlot)
+        plots$heatmap <- plotObjs$heatmapPlot
     return(list(
         data=input,
         design=design,
-        plotopts=plotParams
+        plotopts=plotParams,
+        plots=plots
     ))
 }
 

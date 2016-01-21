@@ -257,7 +257,8 @@ readBed <- function(bed) {
 }
 
 cmclapply <- function(...,rc) {
-    if (suppressWarnings(!require(parallel)) || .Platform$OS.type!="unix")
+    if (suppressWarnings(!requireNamespace("parallel")) 
+        || .Platform$OS.type!="unix")
         m <- FALSE
     else {
         m <- TRUE
@@ -326,6 +327,7 @@ getDefaultListArgs <- function(arg) {
         },
         plotParams = {
             return(list(
+                plot=TRUE,
                 profile=TRUE,
                 heatmap=TRUE,
                 signalScale=c("natural","log2"),
@@ -340,7 +342,9 @@ getDefaultListArgs <- function(arg) {
             return(list(
                 ranges=TRUE,
                 coverage=TRUE,
-                profile=TRUE
+                profile=TRUE,
+                profilePlot=TRUE,
+                heatmapPlot=TRUE
             ))
         },
         kmParams = {
@@ -352,7 +356,33 @@ getDefaultListArgs <- function(arg) {
                 reference=NULL,
                 seed=42
             ))
-        }
+        }#,
+        #complexHeatmapParams = {
+        #    return(list(
+        #        main=list(
+        #            cluster_rows=TRUE,
+        #            cluster_columns=FALSE,
+        #            column_title_gp=gpar(fontsize=12,font=2),
+        #            show_row_names=FALSE,
+        #            show_column_names=FALSE,
+        #            heatmap_legend_param=list(
+        #                color_bar="continuous"
+        #            )
+        #        ),
+        #        group=list(
+        #            cluster_rows=TRUE,
+        #            cluster_columns=FALSE,
+        #            column_title_gp=gpar(fontsize=12,font=2),
+        #            show_row_names=FALSE,
+        #            show_column_names=FALSE,
+        #            row_title_gp=gpar(fontsize=10,font=2),
+        #            gap=unit(5,"mm"),
+        #            heatmap_legend_param=list(
+        #                color_bar="continuous"
+        #            )
+        #        )
+        #    ))
+        #}
     )
 }
 

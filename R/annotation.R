@@ -1,5 +1,5 @@
 buildAnnotationStore <- function(organisms,sources,
-    home=file.path(path.expand("~"),".recover"),forceDownload=TRUE,rc=NULL) {
+    home=file.path(path.expand("~"),".recoup"),forceDownload=TRUE,rc=NULL) {
 
     if (missing(organisms))
         organisms <- c("hg18","hg19","hg38","mm9","mm10","rn5","dm3","danrer7",
@@ -183,15 +183,15 @@ getEnsemblAnnotation <- function(org,type) {
 }
 
 getUcscAnnotation <- function(org,type,refdb="ucsc",rc=NULL) {
-    if (!require(RMySQL)) {
+    if (!requireNamespace("RMySQL")) {
         rmysql.present <- FALSE
-        warnwrap("R package RMySQL is not present! Annotation will be ",
+        warning("R package RMySQL is not present! Annotation will be ",
             "retrieved by downloading temporary files from UCSC and the usage
-            of a temporary SQLite database...")
+            of a temporary SQLite database...",immediate.=TRUE)
     }
     else
         rmysql.present <- TRUE
-    if (!require(RSQLite))
+    if (!requireNamespace("RSQLite"))
         stop("R package RSQLite is required to use annotation from UCSC!")
 
     valid.chrs <- getValidChrs(org)
@@ -270,7 +270,7 @@ getUcscAnnotation <- function(org,type,refdb="ucsc",rc=NULL) {
 
 getGcContent <- function(ann,org) {
     if (missing(ann))
-        stopwrap("A valid annotation data frame must be provided in order to ",
+        stop("A valid annotation data frame must be provided in order to ",
             "retrieve GC-content.")
     org <- tolower(org[1])
     checkTextArgs("org",org,c("hg18","hg19","hg38","mm9","mm10","rn5","dm3",
@@ -343,7 +343,7 @@ getBsOrganism <- function(org) {
             return("BSgenome.Drerio.UCSC.danRer7")
         },
         pantro4 = {
-            stopwrap("panTro4 is not yet supported by BSgenome! Please use ",
+            stop("panTro4 is not yet supported by BSgenome! Please use ",
                 "Ensembl as annoation source.")
         },
         susscr3 = {
@@ -353,11 +353,11 @@ getBsOrganism <- function(org) {
 }
 
 loadBsGenome <- function(org) {
-    if (!require(BiocInstaller))
-        stopwrap("The Bioconductor package BiocInstaller is required to ",
+    if (!requireNamespace("BiocInstaller"))
+        stop("The Bioconductor package BiocInstaller is required to ",
             "proceed!")
-    if (!require(BSgenome))
-        stopwrap("The Bioconductor package BSgenome is required to ",
+    if (!requireNamespace("BSgenome"))
+        stop("The Bioconductor package BSgenome is required to ",
             "proceed!")
     bs.org <- getBsOrganism(org)
     if (bs.org %in% installed.genomes())
@@ -384,9 +384,7 @@ getHost <- function(org) {
         dm3 = { return("www.ensembl.org") },
         danrer7 = { return("www.ensembl.org") },
         pantro4 = { return("www.ensembl.org") },
-        susscr3 = { return("www.ensembl.org") },
-        tair10 = { return("www.biomart.org") },
-        bmori2 = { return("metazoa.ensembl.org") }
+        susscr3 = { return("www.ensembl.org") }
     )
 }
 
@@ -401,9 +399,7 @@ getAltHost <- function(org) {
         dm3 = { return("uswest.ensembl.org") },
         danrer7 = { return("uswest.ensembl.org") },
         pantro4 = { return("uswest.ensembl.org") },
-        susscr3 = { return("uswest.ensembl.org") },
-        tair10 = { return("www.biomart.org") },
-        bmori2 = { return("metazoa.ensembl.org") }
+        susscr3 = { return("uswest.ensembl.org") }
     )
 }
 
@@ -567,7 +563,7 @@ getUcscDbl <- function(org,type,refdb="ucsc") {
         "danrer7","pantro4","susscr3"),multiarg=FALSE)
     checkTextArgs("refdb",refdb,c("ucsc","refseq"))
     
-    if (!require(RSQLite))
+    if (!requireNamespace("RSQLite"))
         stop("R package RSQLite is required to use annotation from UCSC!")
 
     http.base <- paste("http://hgdownload.soe.ucsc.edu/goldenPath/",

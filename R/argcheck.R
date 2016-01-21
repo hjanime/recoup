@@ -276,9 +276,9 @@ validateListArgs <- function(what,arg.list) {
             }
         },
         plotParams = {
-            valid.1 <- names(arg.list) %in% c("profile","heatmap","device",
-                "signalScale","heatmapScale","heatmapFactor","outputDir",
-                "outputBase")
+            valid.1 <- names(arg.list) %in% c("plot","profile","heatmap",
+                "device","signalScale","heatmapScale","heatmapFactor",
+                "outputDir","outputBase")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
@@ -289,6 +289,11 @@ validateListArgs <- function(what,arg.list) {
             if (length(arg.list)>0) {
                 for (n in names(arg.list)) {
                     switch(n,
+                        plot = {
+                            if (!is.logical(arg.list$plot))
+                                stop("The plot option of plotParams parameter ",
+                                    "must be TRUE or FALSE!")
+                        },
                         profile = {
                             if (!is.logical(arg.list$profile))
                                 stop("The profile option of plotParams ",
@@ -349,7 +354,8 @@ validateListArgs <- function(what,arg.list) {
             }
         },
         saveParams = {
-            valid.1 <- names(arg.list) %in% c("ranges","coverage","profile")
+            valid.1 <- names(arg.list) %in% c("ranges","coverage","profile",
+                "profilePlot","heatmapPlot")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
@@ -373,6 +379,16 @@ validateListArgs <- function(what,arg.list) {
                         profile = {
                             if (!is.logical(arg.list$profile))
                                 stop("The profile option of saveParams ",
+                                    "parameter must be TRUE or FALSE!")
+                        },
+                        profilePlot = {
+                            if (!is.logical(arg.list$profilePlot))
+                                stop("The profilePlot option of saveParams ",
+                                    "parameter must be TRUE or FALSE!")
+                        },
+                        heatmapPlot = {
+                            if (!is.logical(arg.list$heatmapPlot))
+                                stop("The heatmapPlot option of saveParams ",
                                     "parameter must be TRUE or FALSE!")
                         }
                     )

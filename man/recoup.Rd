@@ -1,9 +1,9 @@
 \name{recoup}
 \alias{recoup}
 \title{Create genomic signal profiles in predefined or 
-custom areas using short sequence reads}
+    custom areas using short sequence reads}
 \usage{
-    recoup <- function(
+    recoup(
         input,
         design = NULL,
         region = c("genebody", "tss", "tes", "custom"),
@@ -13,8 +13,8 @@ custom areas using short sequence reads}
         refdb = c("ensembl", "ucsc", "refseq"),
         flank = c(2000, 2000),
         orderBy = list(
-            what = c("none", "suma", "sumn", "maxa",
-                "maxn", "hcn"),
+            what = c("none", "suma", "sumn", 
+            "maxa","maxn", "hcn"), 
             order = c("descending", "ascending")
         ),
         binParams = list(
@@ -22,28 +22,30 @@ custom areas using short sequence reads}
             regionBinSize = 0,
             sumStat = c("mean", "median"),
             smooth = TRUE,
-            interpolation = c("auto", "spline", "linear", "neighborhood"),
+            interpolation = c("auto", "spline", "linear", 
+                "neighborhood"),
             forceHeatmapBinning = TRUE,
             forcedBinSize = c(50, 200)
         ),
         selector = list(
-            id = NULL,
-            biotype = getBiotypes(genome),
+            id = NULL, 
+            biotype = getBiotypes(genome), 
             exonType = NULL
         ),
         preprocessParams = list(
-            normalize = c("none", "linear", "downsample",
-                "sampleto"),
+            normalize = c("none", "linear", 
+                "downsample","sampleto"),
             sampleTo = 1e+6,
             spliceAction = c("split", "keep", "remove"),
             spliceRemoveQ = 0.75,
             seed = 42
         ),
         plotParams = list(
+            plot = TRUE,
             profile = TRUE,
             heatmap = TRUE,
             signalScale = c("natural", "log2"),
-            heatmapScale = c("each", "common"),
+            heatmapScale = c("common", "each" ),
             heatmapFactor = 1,
             device = c("x11", "png", "jpg", "tiff", "bmp",
                 "pdf", "ps"),
@@ -53,14 +55,16 @@ custom areas using short sequence reads}
         saveParams = list(
             ranges = TRUE,
             coverage = TRUE,
-            profile = FALSE
+            profile = TRUE,
+            profilePlot = TRUE,
+            heatmapPlot = TRUE
         ),
         complexHeatmapParams = list(
             main = list(
-                cluster_rows = ifelse(orderBy$what == "hc",
-                    TRUE, FALSE),
+                cluster_rows = ifelse(length(grep(
+                    "hc", orderBy$what)) > 0, TRUE, FALSE),
                 cluster_columns = FALSE,
-                column_title_gp = gpar(fontsize = 12, 
+                column_title_gp = grid::gpar(fontsize = 12, 
                     font = 2),
                 show_row_names = FALSE,
                 show_column_names = FALSE,
@@ -68,17 +72,17 @@ custom areas using short sequence reads}
                     color_bar = "continuous"
                 )
             ),
-            group = list(
-                cluster_rows = ifelse(orderBy$what == "hc",
-                    TRUE, FALSE),
+            group=list(
+                cluster_rows = ifelse(length(grep(
+                    "hc", orderBy$what)) > 0, TRUE, FALSE),
                 cluster_columns = FALSE,
-                column_title_gp = gpar(fontsize = 12,
+                column_title_gp = grid::gpar(fontsize = 12, 
                     font = 2),
                 show_row_names = FALSE,
                 show_column_names = FALSE,
-                row_title_gp = gpar(fontsize = 10, 
+                row_title_gp = grid::gpar(fontsize = 10,
                     font = 2),
-                gap = unit(5,"mm"),
+                gap = unit(5, "mm"),
                 heatmap_legend_param = list(
                     color_bar = "continuous"
                 )
@@ -94,12 +98,12 @@ custom areas using short sequence reads}
             seed = 42
         ),
         strandedParams = list(
-            strand = NULL,
+            strand = NULL, 
             ignoreStrand = TRUE
         ),
         bamParams = NULL,
         onTheFly = FALSE,
-        localDbHome = file.path(path.expand("~"), ".recoup"),
+        localDbHome = file.path(path.expand("~"), ".recoup"), 
         rc = NULL
     )
 }
@@ -163,9 +167,9 @@ custom areas using short sequence reads}
         \code{n} in \code{"sumn", "maxn", "hcn"} is the 
         index of the profile which sould be used as 
         reference. See Details for further information.
-        \item \code{order}: either \code{"decreasing"}
+        \item \code{order}: either \code{"descending"}
         (default) for ordering coverages from highest to 
-        lowest, or \code{"decreasing"} for the opposite.
+        lowest, or \code{"ascending"} for the opposite.
     }}
     
     \item{binParams}{a named list whose members control the
@@ -269,12 +273,16 @@ custom areas using short sequence reads}
     list has the following fields:
     \itemize{
         \item \code{profile}: if set to \code{TRUE} 
+        (default), the plots created with the calculated
+        profiles with \code{recoup} are displayed. Set to
+        \code{FALSE} to plot later using the output object.
+        \item \code{profile}: if set to \code{TRUE} 
         (default), the average coverage profile across
-        the genomic regions of preference is plotted.
+        the genomic regions of preference is calculated.
         Set to \code{FALSE} to suppress this.
         \item \code{profile}: if set to \code{TRUE} 
         (default), the coverage heatmap profile across
-        the genomic regions of preference is plotted.
+        the genomic regions of preference is calculated.
         Set to \code{FALSE} to suppress this.
         \item \code{signalScale}: one of \code{"natural"}
         (default) or \code{"log2"} to control the signal
@@ -324,6 +332,18 @@ custom areas using short sequence reads}
         \code{recoup} output in the plotting functions
         \code{\link{recoupProfile}} and 
         \code{\link{recoupHeatmap}}.
+        \item \code{profilePlot}: set to \code{TRUE} 
+        (default) to store \code{ggplot2} object containing
+        the average coverage plot. Set to \code{FALSE} for 
+        not saving. Must be \code{TRUE} if you wish to use
+        the \code{recoup} output later with 
+        \code{\link{recoupPlot}}.
+        \item \code{heatmapPlot}: set to \code{TRUE} 
+        (default) to store \code{ComplexHeatmap} object 
+        containing the coverage heatmap plot. Set to 
+        \code{FALSE} for not saving. Must be \code{TRUE} 
+        if you wish to use the \code{recoup} output later 
+        with \code{\link{recoupPlot}}.
     }
     See the Details section for some additional 
     information.}
@@ -386,17 +406,19 @@ custom areas using short sequence reads}
     }}
 
     \item{bamParams}{BAM file read parameters passed to 
-    \code{\link{BamFile}}. See the related function.
+    \code{BamFile}. See the related function.
     Currently this is not used.}
 
     \item{onTheFly}{Read short reads directly from BAM files
     when input contains paths to BAM files. In this case the
     storage of short reads in the output list object as a 
-    GRanges object is not possible.}
+    GRanges object is not possible. This argument is not
+    used in this release and is a placeholder for the next
+    release.}
     
     \item{localDbHome}{local path to retrieve annotation 
     from when \code{genome} is one of the supported 
-    organisms. See also \link{\code{buildAnnotationStore}}.}
+    organisms. See also \code{\link{buildAnnotationStore}}.}
     
     \item{rc}{fraction (0-1) of cores to use in a multicore 
     system. It defaults to \code{NULL} (no parallelization).}
@@ -405,8 +427,8 @@ custom areas using short sequence reads}
     a named list with three members:
     \itemize{
         \item \code{data}: the \code{input} argument if it
-        was a list or the resulting list from 
-        \code{\link{readConfig}} function, with the 
+        was a list or the resulting list from the unexported
+        internal \code{readConfig} function, with the 
         \code{ranges}, \code{coverage} and \code{profile}
         fields filled according to \code{saveParams}. This
         \code{data} member can be used again as an argument
@@ -581,13 +603,13 @@ custom areas using short sequence reads}
     Then, each \code{NA} position is filled with the mean
     value of the two values before and the two values
     after the \code{NA} position, with \code{na.rm=TRUE}.
-    This method should be avoided when >20% of the values
+    This method should be avoided when >20\% of the values
     of the extended vector are \code{NA}'s as it may cause
     a crash. However, it should be the most accurate one
     in the opposite case (few \code{NA}'s). When 
     \code{"auto"} (the default), a hybrid of 
     \code{"spline"} and \code{"neighborhood"} is applied.
-    If the \code{NA}'s constitute more than 20% of the 
+    If the \code{NA}'s constitute more than 20\% of the 
     extended vector, \code{"spline"} is used, otherwise
     \code{"neighborhood"}. None of the above is applied 
     to regions of equal length as there is no need for 

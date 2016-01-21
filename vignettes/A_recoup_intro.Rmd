@@ -1,7 +1,14 @@
-<!--
-%\VignetteEngine{knitr::knitr}
-%\VignetteIndexEntry{Introduction to recoup package}
--->
+---
+title: "Introduction to the recoup package"
+author: "Panagiotis Moulos"
+date: "`r BiocStyle::doc_date()`"
+output: 
+  BiocStyle::html_document
+vignette: >
+  %\VignetteIndexEntry{Introduction to the recoup package}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}  
+---
 
 Genomic coverages remastered! The recoup package.
 ==================================================
@@ -67,7 +74,7 @@ recoup is not here to replace other more mature packages. It is here to offer
 more options to users that need more sophisticated genomic profile 
 visualizations.
 
-## 1. Getting started
+## Getting started
 
 Detailed instructions on how to run the recoup genomic profile creation 
 pipeline can be found under the main documentation of the package:
@@ -114,7 +121,7 @@ help(test.design)
 help(test.exons)
 ```
 
-## 2. Getting some data
+## Getting some data
 
 In order to run smoothly the rest of the examples in these vignettes and produce
 some realistic results, you need to download a set of example BAM files, genomic
@@ -152,7 +159,7 @@ archive to a path of your preference, e.g. `/home/me/recoup_tutorial`. In the
 rest of this tutorial, we assume that the path where the test data are placed is
 `/home/me/recoup_tutorial`.
 
-## 3. Building a local annotation store
+## Building a local annotation store
 
 Apart from a user specified file, the reference genomic regions used by recoup 
 to construct average profiles over, can be predefined gene set from a few common
@@ -173,17 +180,19 @@ much more preferrable to spend some time building the local store as it can save
 a lot of running time later by investing some time in the beginning to build
 this store.
 
-## 4. Running recoup
+## Running recoup
 
 The `recoup` function can be used to create coverage profiles from ChIP-Seq 
 like experiments (signals over continuous genomic regions) or from RNA-Seq 
 experiments (signals over non-continuous genomic regions). More details 
 regarding each type can be found in:
 
-* The ChIP-Seq coverage profile vignette [here](recoup_chipseq.html)
-* The RNA-Seq coverage profile vignette [here](recoup_rnaseq.html)
+* The ChIP-Seq coverage profile vignette [here](B_recoup_chipseq.html)
+* The RNA-Seq coverage profile vignette [here](C_recoup_rnaseq.html)
 
-__Important note__: When working with gene bodies, it happens very often that 
+## Important notes
+
+1. When working with gene bodies, it happens very often that 
 gene lengths are a little to a lot smaller than the number of bins into which
 they should be split and averaged in order to be able to create the average 
 curve and heatmap profiles. While other packages line ngs.plot deal with this by
@@ -193,23 +202,34 @@ a more dynamic resolution by allowing the user to set the number of bins into
 which genomic areas will be binned or by allowing a per-base resolution where 
 possible. Thus, when genes are smaller than the desired number of bins, there
 might be a problem. `recoup` deals with that in four possible ways: 
-1. An "automatic" way using a hybrid combination of the spline and 
-neighborhood options below
-2. Spline interpolation (R `spline` function with the default method)
-3. Linear interpolation (R `approx` function with the default method)
-4. A method based on averaging neighboring coverage points. In this case, a 
-number of `NA` values are distributed randomly across the small area coverage 
-vector (e.g. gene with length smaller than the desired number of bins), 
-excluding the first and the last two positions, in order to reach the desired 
-number of bins. Then, each `NA` position is filled with the mean value of the 
-two values before and the two values after the `NA` position. This method 
-should be avoided when >20% of the values of the extended vector are `NA`'s as
-it may cause a crash. However, it should be the most accurate one in the 
-opposite case (few `NA`'s)
-See the `recoup` man page for further information.
+    + An "automatic" way using a hybrid combination of the spline and 
+    neighborhood options below
+    + Spline interpolation (R `spline` function with the default method)
+    + Linear interpolation (R `approx` function with the default method)
+    + A method based on averaging neighboring coverage points. In this case, a 
+    number of `NA` values are distributed randomly across the small area 
+    coverage vector (e.g. gene with length smaller than the desired number of 
+    bins), excluding the first and the last two positions, in order to reach 
+    the desired number of bins. Then, each `NA` position is filled with the 
+    mean value of the two values before and the two values after the `NA` 
+    position. This method should be avoided when >20% of the values of the 
+    extended vector are `NA`'s as it may cause a crash. However, it should be 
+    the most accurate one in the opposite case (few `NA`'s). See the 
+    `recoup` man page for further information.
 
-## 5. R session information
+2. In the two vignettes explaining the useage of the `recoup` package and its
+functions and in the examples, you will notice the direct use of `plot` function
+instead of direct plotting (`plotParams$plot=FALSE` instead of the default 
+`TRUE`) or the `recoupPlot` function. This has been done on purpose as at this 
+point, it is not straighforward how to tell the `knitr` vignette builder how to 
+plot objects created within called functions.
 
-```{r}
+3. Due to strict Bioconductor guidelines regarding package size, these vignettes
+can also be found in the github package [page](https://github.com/pmoulos/recoup)
+with a little more examples.
+
+## R session information
+
+```{r echo=FALSE}
 sessionInfo()
 ```

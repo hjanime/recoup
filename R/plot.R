@@ -1,3 +1,38 @@
+recoupPlot <- function(recoupObj,plotParams=list(plot=FALSE,profile=TRUE,
+    heatmap=TRUE,device="x11"),mainh=1) {
+    if (!is.null(plotParams$profile)) {
+        theProfile <- recoupObj$plots$profile
+        if (plotParams$device=="x11") {
+            dev.new()
+            plot(theProfile)
+        }
+        else
+            ggsave(filename=paste(plotParams$outputBase,"_profile.",
+                plotParams$device,sep=""),plot=theProfile,
+                path=plotParams$outputDir)
+    }
+    
+    if (!is.null(plotParams$heatmap)) {
+        theHeatmap <- recoupObj$plots$heatmap
+        if (plotParams$device=="x11") {
+            dev.new()
+            draw(theHeatmap,gap=grid::unit(1,"cm"),main_heatmap=mainh)
+        }
+        else {
+            # Starting from width=4, we add 1.5 inches for each heatmap
+            iw <- 4 + (length(input)-1)*1.5
+            if (plotParams$device == "pdf")
+                graphicsOpen(plotParams$device,paste(plotParams$outputBase,
+                    "_heatmap.",plotParams$device,sep=""),width=iw)
+            else
+                graphicsOpen(plotParams$device,paste(plotParams$outputBase,
+                    "_heatmap.",plotParams$device,sep=""),width=iw,units="in")
+            draw(theHeatmap,gap=grid::unit(1,"cm"),main_heatmap=mainh)
+            graphicsClose(plotParams$device)
+        }
+    }
+}
+
 recoupProfile <- function(recoupObj,rc=NULL) {
     # Retrieve data
     input <- recoupObj$data
@@ -11,9 +46,12 @@ recoupProfile <- function(recoupObj,rc=NULL) {
             "returned by recoup having changed the default saveParams ",
             "parameter")
     
+    if (!requireNamespace("grid"))
+        stop("R package grid is required to create average profile plots!")
+    
     # Create the x-axis breaks and labels
     width <- ncol(input[[1]]$profile)
-    lb <- makeHorizontalAnnotation(width,opts)
+    lb <- makeHorizontalAnnotation(width,opts,"profile")
     breaks <- lb$breaks
     labels <- lb$labels
     
@@ -51,13 +89,20 @@ recoupProfile <- function(recoupObj,rc=NULL) {
             theme_bw() +
             xlab("\nPosition in bp") +
             ylab("Normalized average signal\n") +
-            theme(title=element_text(size=14),
-                axis.title.x=element_text(size=12,face="bold"),
-                axis.title.y=element_text(size=12,face="bold"),
-                axis.text.x=element_text(size=10,face="bold"),
-                axis.text.y=element_text(size=12,face="bold"),
+            #theme(title=element_text(size=14),
+            #    axis.title.x=element_text(size=12,face="bold"),
+            #    axis.title.y=element_text(size=12,face="bold"),
+            #    axis.text.x=element_text(size=10,face="bold"),
+            #    axis.text.y=element_text(size=12,face="bold"),
+            #    legend.position="bottom") +
+            #scale_x_continuous(breaks=breaks,labels=labels)
+            theme(title=element_text(size=12),
+                axis.title.x=element_text(size=10,face="bold"),
+                axis.title.y=element_text(size=10,face="bold"),
+                axis.text.x=element_text(size=9,face="bold"),
+                axis.text.y=element_text(size=10,face="bold"),
                 legend.position="bottom") +
-                scale_x_continuous(breaks=breaks,labels=labels)
+             scale_x_continuous(breaks=breaks,labels=labels)
                 
         if (!is.null(profileColors))
             ggplot.plot <- ggplot.plot + 
@@ -146,15 +191,24 @@ recoupProfile <- function(recoupObj,rc=NULL) {
                 theme_bw() +
                 xlab("\nPosition in bp") +
                 ylab("Normalized average signal\n") +
-                theme(title=element_text(size=14),
-                    axis.title.x=element_text(size=12,face="bold"),
-                    axis.title.y=element_text(size=12,face="bold"),
-                    axis.text.x=element_text(size=10,face="bold"),
-                    axis.text.y=element_text(size=12,face="bold"),
-                    strip.text.x=element_text(size=12,face="bold"),
-                    strip.text.y=element_text(size=11,face="bold"),
+                #theme(title=element_text(size=14),
+                #    axis.title.x=element_text(size=12,face="bold"),
+                #    axis.title.y=element_text(size=12,face="bold"),
+                #    axis.text.x=element_text(size=10,face="bold"),
+                #    axis.text.y=element_text(size=12,face="bold"),
+                #    strip.text.x=element_text(size=12,face="bold"),
+                #    strip.text.y=element_text(size=11,face="bold"),
+                #    legend.position="bottom",
+                #    panel.margin=grid::unit(1,"lines"))  +
+                theme(title=element_text(size=12),
+                    axis.title.x=element_text(size=10,face="bold"),
+                    axis.title.y=element_text(size=10,face="bold"),
+                    axis.text.x=element_text(size=0,face="bold"),
+                    axis.text.y=element_text(size=10,face="bold"),
+                    strip.text.x=element_text(size=10,face="bold"),
+                    strip.text.y=element_text(size=10,face="bold"),
                     legend.position="bottom",
-                    panel.margin=unit(1,"lines"))  +
+                    panel.margin=grid::unit(1,"lines"))  +
                 scale_x_continuous(breaks=breaks,labels=labels)
 
             if (!is.null(profileColors))
@@ -203,15 +257,24 @@ recoupProfile <- function(recoupObj,rc=NULL) {
                 theme_bw() +
                 xlab("\nPosition in bp") +
                 ylab("Normalized average signal\n") +
-                theme(title=element_text(size=14),
-                    axis.title.x=element_text(size=12,face="bold"),
-                    axis.title.y=element_text(size=12,face="bold"),
-                    axis.text.x=element_text(size=10,face="bold"),
-                    axis.text.y=element_text(size=12,face="bold"),
-                    strip.text.x=element_text(size=12,face="bold"),
-                    strip.text.y=element_text(size=11,face="bold"),
+                #theme(title=element_text(size=14),
+                #    axis.title.x=element_text(size=12,face="bold"),
+                #    axis.title.y=element_text(size=12,face="bold"),
+                #    axis.text.x=element_text(size=10,face="bold"),
+                #    axis.text.y=element_text(size=12,face="bold"),
+                #    strip.text.x=element_text(size=12,face="bold"),
+                #    strip.text.y=element_text(size=11,face="bold"),
+                #    legend.position="bottom",
+                #    panel.margin=grid::unit(1,"lines"))  +
+                theme(title=element_text(size=12),
+                    axis.title.x=element_text(size=10,face="bold"),
+                    axis.title.y=element_text(size=10,face="bold"),
+                    axis.text.x=element_text(size=9,face="bold"),
+                    axis.text.y=element_text(size=10,face="bold"),
+                    strip.text.x=element_text(size=10,face="bold"),
+                    strip.text.y=element_text(size=10,face="bold"),
                     legend.position="bottom",
-                    panel.margin=unit(1,"lines"))  +
+                    panel.margin=grid::unit(1,"lines"))  +
                 scale_x_discrete(breaks=breaks,labels=labels)
 
             if (ncol(design)==2)
@@ -237,7 +300,7 @@ recoupHeatmap <- function(recoupObj,rc=NULL) {
     
     width <- ncol(input[[1]]$profile)
     labCol <- rep("",width)
-    lb <- makeHorizontalAnnotation(width,opts)
+    lb <- makeHorizontalAnnotation(width,opts,"heatmap")
     labCol[round(lb$breaks)] <- lb$labels
     
     if (opts$yAxisParams$signalScale=="log2") {
@@ -250,10 +313,10 @@ recoupHeatmap <- function(recoupObj,rc=NULL) {
     haCol <- HeatmapAnnotation(cn=function(index) {
         width <- ncol(input[[1]]$profile)
         labCol <- rep("",width)
-        lb <- makeHorizontalAnnotation(width,opts)
+        lb <- makeHorizontalAnnotation(width,opts,"heatmap")
         labCol[round(lb$breaks)] <- lb$labels
         grid.text(labCol,(1:width)/width,1,vjust=1,
-            gp=gpar(cex=0.8))
+            gp=grid::gpar(cex=0.7))
     })
     
     # Here we need to apply the orderBy directives. If orderBy$what is 
@@ -629,10 +692,10 @@ orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
    return(unlist(sorter))
 }
 
-makeHorizontalAnnotation <- function(width,opts) {
+makeHorizontalAnnotation <- function(width,opts,type=c("profile","heatmap")) {
     fl <- opts$xAxisParams$flank
     fl[1] <- -fl[1]
-    if (opts$binParams$forceHeatmapBinning)
+    if (type=="heatmap" && opts$binParams$forceHeatmapBinning)
         opts$binParams$flankBinSize <- opts$binParams$forcedBinSize[1]
     edgeLabels <- paste(round(fl/1000,1),"kb",sep="")
     switch(opts$xAxisParams$region,

@@ -40,7 +40,7 @@
     the package biomaRt and downloads annotation elements
     (gene co-ordinates, exon co-ordinates, gene
     identifications, biotypes etc.) for each of the supported
-    organisms. See the help page of \code{\link{metaseqr}}
+    organisms. See the help page of \code{\link{recoup}}
     for a list of supported organisms. The function downloads
     annotation for an organism genes or exons. It also uses
     the UCSC public database connection API to download UCSC
@@ -53,9 +53,7 @@
     chromosome M.
 }
 \examples{
-\donttest{
     mm9.genes <- getAnnotation("mm9","gene")
-}
 }
 \author{
     Panagiotis Moulos
