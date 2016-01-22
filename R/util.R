@@ -1,10 +1,10 @@
-splitBySeqname <- function(gr) {
+splitBySeqname <- function(gr,rc=NULL) {
     #message("Splitting input regions by seqname...")
     gr.list <- cmclapply(levels(seqnames(gr)),function(x,lib) {
         #message("  ",x)
         tmp <- lib[seqnames(lib)==x]
         if (length(tmp)>0) return(tmp) else return(NULL)
-    },gr)
+    },gr,rc=rc)
     names(gr.list) <- levels(seqnames(gr))
     null <- which(sapply(gr.list,is.null))
     if (length(null)>0)
@@ -13,7 +13,10 @@ splitBySeqname <- function(gr) {
 }
 
 splitVector <- function(x,n,interp,seed=42) {
+    isRle <- ifelse(is(x,"Rle"),TRUE,FALSE)
     if (length(x)<n) {
+        if (isRle)
+            x <- as.numeric(x)
         switch(interp,
             auto = {
                 d <- (n-length(x))/n
@@ -62,18 +65,11 @@ splitVector <- function(x,n,interp,seed=42) {
                     return(mean(yy[ii],na.rm=TRUE))
                 },y))
                 y[na] <- xx
+                x <- y
             }
         )
-        #y <- rep(0,n)
-        #y <- rep(NA,n)
-        #set.seed(seed)
-        #orig.pos <- sort(sample(n,length(x)))
-        #y[orig.pos] <- x
-        #warning("Vector to split is shorter than the number of desired bins! ",
-        #    n-length(x)," NAs will be randomly distributed along the original ",
-        #    "vector for compliance and but will be ignored in the final ",
-        #    "profile calculations",immediate.=TRUE)
-        #x <- y
+        if (isRle)
+            x <- Rle(x)
     }
     bin.size <- floor(length(x)/n)
     dif <- length(x) - bin.size*n 
@@ -143,6 +139,12 @@ preprocessRanges <- function(input,preprocessParams,bamParams=NULL,rc=NULL) {
     hasRanges <- sapply(input,function(x) is.null(x$ranges))
     if (!any(hasRanges))
         return(input)
+    # Else, BAM/BED files must be read, so we check if they exist
+    if (!all(sapply(input,function(x) {
+        file.exists(x$file)
+    })))
+        stop("One or more input files cannot be found! Check the validity of ",
+            "the file paths.")
     switch(preprocessParams$normalize,
         none = {
             ranges <- cmclapply(input,function(x,pp,p) {
@@ -356,33 +358,7 @@ getDefaultListArgs <- function(arg) {
                 reference=NULL,
                 seed=42
             ))
-        }#,
-        #complexHeatmapParams = {
-        #    return(list(
-        #        main=list(
-        #            cluster_rows=TRUE,
-        #            cluster_columns=FALSE,
-        #            column_title_gp=gpar(fontsize=12,font=2),
-        #            show_row_names=FALSE,
-        #            show_column_names=FALSE,
-        #            heatmap_legend_param=list(
-        #                color_bar="continuous"
-        #            )
-        #        ),
-        #        group=list(
-        #            cluster_rows=TRUE,
-        #            cluster_columns=FALSE,
-        #            column_title_gp=gpar(fontsize=12,font=2),
-        #            show_row_names=FALSE,
-        #            show_column_names=FALSE,
-        #            row_title_gp=gpar(fontsize=10,font=2),
-        #            gap=unit(5,"mm"),
-        #            heatmap_legend_param=list(
-        #                color_bar="continuous"
-        #            )
-        #        )
-        #    ))
-        #}
+        }
     )
 }
 

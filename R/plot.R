@@ -58,7 +58,9 @@ recoupProfile <- function(recoupObj,rc=NULL) {
     profileColors <- unlist(sapply(input,function(x) return(x$color)))
     if (!is.null(profileColors))
         names(profileColors) <- unlist(sapply(input,function(x) return(x$name)))
-        
+    
+    ggParams <- opts$ggplotParams
+    
     if (is.null(design)) {
         # Create ggplot data
         profiles <- calcPlotProfiles(input,opts,rc)
@@ -88,20 +90,13 @@ recoupProfile <- function(recoupObj,rc=NULL) {
                 fill=Condition),alpha=0.3,size=0) +
             theme_bw() +
             xlab("\nPosition in bp") +
-            ylab("Normalized average signal\n") +
-            #theme(title=element_text(size=14),
-            #    axis.title.x=element_text(size=12,face="bold"),
-            #    axis.title.y=element_text(size=12,face="bold"),
-            #    axis.text.x=element_text(size=10,face="bold"),
-            #    axis.text.y=element_text(size=12,face="bold"),
-            #    legend.position="bottom") +
-            #scale_x_continuous(breaks=breaks,labels=labels)
-            theme(title=element_text(size=12),
-                axis.title.x=element_text(size=10,face="bold"),
-                axis.title.y=element_text(size=10,face="bold"),
-                axis.text.x=element_text(size=9,face="bold"),
-                axis.text.y=element_text(size=10,face="bold"),
-                legend.position="bottom") +
+            ylab("Average signal\n") +
+            theme(title=ggParams$title,
+                axis.title.x=ggParams$axis.title.x,
+                axis.title.y=ggParams$axis.title.y,
+                axis.text.x=ggParams$axis.text.x,
+                axis.text.y=ggParams$axis.text.y,
+                legend.position=ggParams$legend.position) +
              scale_x_continuous(breaks=breaks,labels=labels)
                 
         if (!is.null(profileColors))
@@ -190,25 +185,16 @@ recoupProfile <- function(recoupObj,rc=NULL) {
                     colour=Condition,fill=Condition),alpha=0.3,size=0) +
                 theme_bw() +
                 xlab("\nPosition in bp") +
-                ylab("Normalized average signal\n") +
-                #theme(title=element_text(size=14),
-                #    axis.title.x=element_text(size=12,face="bold"),
-                #    axis.title.y=element_text(size=12,face="bold"),
-                #    axis.text.x=element_text(size=10,face="bold"),
-                #    axis.text.y=element_text(size=12,face="bold"),
-                #    strip.text.x=element_text(size=12,face="bold"),
-                #    strip.text.y=element_text(size=11,face="bold"),
-                #    legend.position="bottom",
-                #    panel.margin=grid::unit(1,"lines"))  +
-                theme(title=element_text(size=12),
-                    axis.title.x=element_text(size=10,face="bold"),
-                    axis.title.y=element_text(size=10,face="bold"),
-                    axis.text.x=element_text(size=0,face="bold"),
-                    axis.text.y=element_text(size=10,face="bold"),
-                    strip.text.x=element_text(size=10,face="bold"),
-                    strip.text.y=element_text(size=10,face="bold"),
-                    legend.position="bottom",
-                    panel.margin=grid::unit(1,"lines"))  +
+                ylab("Average signal\n") +
+                theme(title=ggParams$title,
+                    axis.title.x=ggParams$axis.title.x,
+                    axis.title.y=ggParams$axis.title.y,
+                    axis.text.x=ggParams$axis.text.x,
+                    axis.text.y=ggParams$axis.text.y,
+                    strip.text.x=ggParams$strip.text.x,
+                    strip.text.y=ggParams$strip.text.y,
+                    legend.position=ggParams$legend.position,
+                    panel.margin=ggParams$panel.margin) +
                 scale_x_continuous(breaks=breaks,labels=labels)
 
             if (!is.null(profileColors))
@@ -256,26 +242,17 @@ recoupProfile <- function(recoupObj,rc=NULL) {
                     colour=Design,fill=Design),alpha=0.3,size=0) +
                 theme_bw() +
                 xlab("\nPosition in bp") +
-                ylab("Normalized average signal\n") +
-                #theme(title=element_text(size=14),
-                #    axis.title.x=element_text(size=12,face="bold"),
-                #    axis.title.y=element_text(size=12,face="bold"),
-                #    axis.text.x=element_text(size=10,face="bold"),
-                #    axis.text.y=element_text(size=12,face="bold"),
-                #    strip.text.x=element_text(size=12,face="bold"),
-                #    strip.text.y=element_text(size=11,face="bold"),
-                #    legend.position="bottom",
-                #    panel.margin=grid::unit(1,"lines"))  +
-                theme(title=element_text(size=12),
-                    axis.title.x=element_text(size=10,face="bold"),
-                    axis.title.y=element_text(size=10,face="bold"),
-                    axis.text.x=element_text(size=9,face="bold"),
-                    axis.text.y=element_text(size=10,face="bold"),
-                    strip.text.x=element_text(size=10,face="bold"),
-                    strip.text.y=element_text(size=10,face="bold"),
-                    legend.position="bottom",
-                    panel.margin=grid::unit(1,"lines"))  +
-                scale_x_discrete(breaks=breaks,labels=labels)
+                ylab("Average signal\n") +
+                theme(title=ggParams$title,
+                    axis.title.x=ggParams$axis.title.x,
+                    axis.title.y=ggParams$axis.title.y,
+                    axis.text.x=ggParams$axis.text.x,
+                    axis.text.y=ggParams$axis.text.y,
+                    strip.text.x=ggParams$strip.text.x,
+                    strip.text.y=ggParams$strip.text.y,
+                    legend.position=ggParams$legend.position,
+                    panel.margin=ggParams$panel.margin) +
+                scale_x_continuous(breaks=breaks,labels=labels)
 
             if (ncol(design)==2)
                 ggplot.plot <- ggplot.plot + facet_grid(fac2~.)

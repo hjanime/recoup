@@ -59,6 +59,36 @@
             profilePlot = TRUE,
             heatmapPlot = TRUE
         ),
+        kmParams = list(
+            k = 0,
+            nstart = 20,
+            algorithm = c("Hartigan-Wong", "Lloyd",
+                "Forgy", "MacQueen"),
+            iterMax = 20,
+            reference = NULL,
+            seed = 42
+        ),
+        strandedParams = list(
+            strand = NULL, 
+            ignoreStrand = TRUE
+        ),
+        ggplotParams = list(
+            title = element_text(size = 12),
+            axis.title.x = element_text(size = 10, 
+                face = "bold"),
+            axis.title.y = element_text(size = 10, 
+                face = "bold"),
+            axis.text.x = element_text(size = 9, 
+                face = "bold"),
+            axis.text.y = element_text(size = 10, 
+                face = "bold"),
+            strip.text.x = element_text(size = 10, 
+                face = "bold"),
+            strip.text.y = element_text(size = 10, 
+                face = "bold"),
+            legend.position = "bottom",
+            panel.margin = grid::unit(1, "lines")
+        ),
         complexHeatmapParams = list(
             main = list(
                 cluster_rows = ifelse(length(grep(
@@ -87,19 +117,6 @@
                     color_bar = "continuous"
                 )
             )
-        ),
-        kmParams = list(
-            k = 0,
-            nstart = 20,
-            algorithm = c("Hartigan-Wong", "Lloyd",
-                "Forgy", "MacQueen"),
-            iterMax = 20,
-            reference = NULL,
-            seed = 42
-        ),
-        strandedParams = list(
-            strand = NULL, 
-            ignoreStrand = TRUE
         ),
         bamParams = NULL,
         onTheFly = FALSE,
@@ -348,23 +365,6 @@
     See the Details section for some additional 
     information.}
     
-    \item{complexHeatmapParams}{a named list with groups
-    of parameters passed to the \code{\link{Heatmap}}
-    function of the \code{ComplexHeatmap} package. The
-    list has the following fields:
-    \itemize{
-        \item \code{main}: \code{\link{Heatmap}} parameters
-        applied to each non-split (according to 
-        \code{design}) heatmap. See the \code{recoup} 
-        function call for supported parameters and 
-        \code{\link{Heatmap}} for further details.
-        \item \code{main}: \code{\link{Heatmap}} parameters
-        applied to each split (according to \code{design}) 
-        heatmap. See the \code{recoup} function call for 
-        supported parameters and \code{\link{Heatmap}} 
-        for further details.
-    }}
-    
     \item{kmParams}{a named list which controls the 
      execution of k-means clustering (using standard
      R base functions). The list has the following fields:
@@ -403,6 +403,29 @@
         or \code{FALSE}. Passed to the \code{ignore.strand}
         argument in the \code{\link{findOverlaps}} function
         used during coverage calculations.
+    }}
+    
+    \item{ggplotParams}{a named list with theme parameters
+    passed to the \code{\link{ggplot}} function of the
+    \code{ggplot2} package. See the documentation of 
+    \code{ggplot2} for further details. Only the parameters
+    mentioned in the function call are used.}
+    
+    \item{complexHeatmapParams}{a named list with groups
+    of parameters passed to the \code{\link{Heatmap}}
+    function of the \code{ComplexHeatmap} package. The
+    list has the following fields:
+    \itemize{
+        \item \code{main}: \code{\link{Heatmap}} parameters
+        applied to each non-split (according to 
+        \code{design}) heatmap. See the \code{recoup} 
+        function call for supported parameters and 
+        \code{\link{Heatmap}} for further details.
+        \item \code{main}: \code{\link{Heatmap}} parameters
+        applied to each split (according to \code{design}) 
+        heatmap. See the \code{recoup} function call for 
+        supported parameters and \code{\link{Heatmap}} 
+        for further details.
     }}
 
     \item{bamParams}{BAM file read parameters passed to 

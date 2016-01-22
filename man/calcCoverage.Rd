@@ -3,7 +3,7 @@
 \title{Build a local annotation database for recoup}
 \usage{
     calcCoverage(input, mask, strand = NULL,
-        ignore.strand = TRUE)
+        ignore.strand = TRUE, rc = NULL)
 }
 \arguments{
     \item{input}{a \code{GRanges} object or a list of
@@ -18,6 +18,9 @@
     
     \item{ignore.strand}{see the \code{strandedParams} in 
     the main \code{\link{recoup}} function.}
+    
+    \item{rc}{fraction (0-1) of cores to use in a multicore 
+    system. It defaults to \code{NULL} (no parallelization).}
 }
 \value{
     A list of \code{Rle} objects representing the
@@ -53,4 +56,3 @@ small.cov <- calcCoverage(test.input[[1]]$ranges,mask)
 \author{
     Panagiotis Moulos
 }
-

@@ -62,7 +62,7 @@ recoup is not here to replace other more mature packages. It is here to offer
 more options to users that need more sophisticated genomic profile 
 visualizations.
 
-## 1 Getting started
+## 1. Getting started
 
 Detailed instructions on how to run the recoup genomic profile creation 
 pipeline can be found under the main documentation of the package:
@@ -99,7 +99,7 @@ are useful for the user to check how the input data to recoup should look like.
 For a more complete test dataset (a small one) have a look and download from
 [here](https://drive.google.com/file/d/0BxxrqIl3Nb0NSVNqdGNPa3M3cnc/view?usp=sharing)
 
-## 2 Getting some data
+## 2. Getting some data
 
 In order to run smoothly the rest of the examples in these vignettes and produce
 some realistic results, you need to download a set of example BAM files, genomic
@@ -137,7 +137,7 @@ archive to a path of your preference, e.g. `/home/me/recoup_tutorial`. In the
 rest of this tutorial, we assume that the path where the test data are placed is
 `/home/me/recoup_tutorial`.
 
-## 3 Building a local annotation store
+## 3. Building a local annotation store
 
 Apart from a user specified file, the reference genomic regions used by recoup 
 to construct average profiles over, can be predefined gene set from a few common
@@ -157,7 +157,7 @@ fly. However, if subsets of the supported organisms are to be used often, it is
 much more preferrable to spend some time building the local store as it can save
 a lot of running time.
 
-## 4 Running recoup
+## 4. Running recoup
 
 The `recoup` function can be used to create coverage profiles from ChIP-Seq 
 like experiments (signals over continuous genomic regions) or from RNA-Seq 

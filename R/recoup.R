@@ -56,6 +56,32 @@ recoup <- function(
         heatmapPlot=TRUE
     ),
     #saveParams=getDefaultListArgs("saveParams"),
+    kmParams=list(
+        k=0, # Do not perform kmeans
+        nstart=20,
+        algorithm=c("Hartigan-Wong","Lloyd","Forgy","MacQueen"),
+        iterMax=20,
+        reference=NULL,
+        seed=42
+    ),
+    #kmParams=getDefaultListArgs("kmParams"),
+    strandedParams=list(
+        strand=NULL,
+        ignoreStrand=TRUE
+    ),
+    #strandedParams=getDefaultListArgs("strandedParams"),
+    ggplotParams=list(
+        title=element_text(size=12),
+        axis.title.x=element_text(size=10,face="bold"),
+        axis.title.y=element_text(size=10,face="bold"),
+        axis.text.x=element_text(size=9,face="bold"),
+        axis.text.y=element_text(size=10,face="bold"),
+        strip.text.x=element_text(size=10,face="bold"),
+        strip.text.y=element_text(size=10,face="bold"),
+        legend.position="bottom",
+        panel.margin=grid::unit(1,"lines")
+    ),
+    #ggplotParams=getDefaultListArgs("ggplotParams"),
     complexHeatmapParams=list(
         main=list(
             cluster_rows=ifelse(length(grep("hc",orderBy$what))>0,TRUE,FALSE),
@@ -81,20 +107,6 @@ recoup <- function(
         )
     ),
     #complexHeatmapParams=getDefaultListArgs("complexHeatmapParams"),
-    kmParams=list(
-        k=0, # Do not perform kmeans
-        nstart=20,
-        algorithm=c("Hartigan-Wong","Lloyd","Forgy","MacQueen"),
-        iterMax=20,
-        reference=NULL,
-        seed=42
-    ),
-    #kmParams=getDefaultListArgs("kmParams"),
-    strandedParams=list(
-        strand=NULL,
-        ignoreStrand=TRUE
-    ),
-    #strandedParams=getDefaultListArgs("strandedParams"),
     bamParams=NULL,
     onTheFly=FALSE, # Directly from BAM w/o Ranges storing, also N/A with BED,
     localDbHome=file.path(path.expand("~"),".recoup"),
@@ -352,11 +364,11 @@ recoup <- function(
     if (region=="custom" && all(width(genomeRanges)==1))
         customOne <- FALSE
     if (type=="chipseq")
-        input <- coverageRef(input,genomeRanges,region,flank,strandedParams)
-            #,bamParams)
+        input <- coverageRef(input,genomeRanges,region,flank,strandedParams,
+            rc=rc)#,bamParams)
     else if (type=="rnaseq")
         input <- coverageRnaRef(input,genomeRanges,helperRanges,flank,
-            strandedParams)#,bamParams)
+            strandedParams,rc=rc)#,bamParams)
     
     # If normalization method is linear, we must adjust the coverages
     if (preprocessParams$normalize=="linear") {
@@ -460,6 +472,7 @@ recoup <- function(
         ),
         binParams=binParams,
         orderBy=orderBy,
+        ggplotParams=ggplotParams,
         complexHeatmapParams=complexHeatmapParams
     )
     
@@ -591,28 +604,29 @@ recoup <- function(
 
 coverageRef <- function(input,genomeRanges,region=c("tss","tes","genebody",
     "custom"),flank=c(2000,2000),strandedParams=list(strand=NULL,
-    ignoreStrand=TRUE),bamParams=NULL) {
+    ignoreStrand=TRUE),bamParams=NULL,rc=NULL) {
     
     if (region %in% c("tss","tes","custom")) {
         if (region %in% c("tss","tes"))
             input <- coverageBaseRef(input,genomeRanges,region,flank,
-                strandedParams)#,bamParams)
+                strandedParams,rc=rc)#,bamParams)
         else if (region=="custom") {
             if (all(width(genomeRanges)==1))
                 input <- coverageBaseRef(input,genomeRanges,region,flank,
-                    strandedParams)#,bamParams)
+                    strandedParams,rc=rc)#,bamParams)
             else
                 input <- coverageAreaRef(input,genomeRanges,region,flank,
-                    strandedParams)#,bamParams)
+                    strandedParams,rc=rc)#,bamParams)
         }
     }
     else # is genebody
-        input <- coverageAreaRef(input,genomeRanges,region,flank,strandedParams)
-            #,bamParams)
+        input <- coverageAreaRef(input,genomeRanges,region,flank,strandedParams,
+            rc=rc)#,bamParams)
     return(input)
 }
 
-coverageBaseRef <- function(input,genomeRanges,region,flank,strandedParams) {
+coverageBaseRef <- function(input,genomeRanges,region,flank,strandedParams,
+    rc=NULL) {
     mainRanges <- getRegionalRanges(genomeRanges,region,flank)
     names(input) <- sapply(input,function(x) return(x$id))
     for (n in names(input)) {
@@ -620,43 +634,43 @@ coverageBaseRef <- function(input,genomeRanges,region,flank,strandedParams) {
         if (!is.null(input[[n]]$ranges))
             input[[n]]$coverage <- calcCoverage(input[[n]]$ranges,mainRanges,
                 strand=strandedParams$strand,
-                ignore.strand=strandedParams$ignoreStrand)
+                ignore.strand=strandedParams$ignoreStrand,rc=rc)
         else
             input[[n]]$coverage <- calcCoverage(input[[n]]$file,mainRanges,
                 strand=strandedParams$strand,
-                ignore.strand=strandedParams$ignoreStrand)
+                ignore.strand=strandedParams$ignoreStrand,rc=rc)
     }
     return(input)
 }
 
 coverageAreaRef <- function(input,genomeRanges,region,flank,strandedParams,
-    bamParams=NULL) {
+    bamParams=NULL,rc=NULL) {
     mainRanges <- getRegionalRanges(genomeRanges,region,flank)
     leftRanges <- getFlankingRanges(mainRanges,flank[1],"upstream")
     rightRanges <- getFlankingRanges(mainRanges,flank[2],"downstream")
     
     names(input) <- sapply(input,function(x) return(x$id))
     for (n in names(input)) {
-        theRanges <- splitBySeqname(input[[n]]$ranges)
+        theRanges <- splitBySeqname(input[[n]]$ranges,rc=rc)
         message("Calculating ",region," coverage for ",input[[n]]$name)
         message(" center...")
         input[[n]]$coverage$center <- calcCoverage(theRanges,mainRanges,
             strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand)
+            ignore.strand=strandedParams$ignoreStrand,rc=rc)
         message(" upstream...")
         input[[n]]$coverage$upstream <- calcCoverage(theRanges,leftRanges,
             strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand)
+            ignore.strand=strandedParams$ignoreStrand,rc=rc)
         message(" downstream...")
         input[[n]]$coverage$downstream <- calcCoverage(theRanges,rightRanges,
             strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand)
+            ignore.strand=strandedParams$ignoreStrand,rc=rc)
     }
     return(input)
 }
 
 coverageRnaRef <- function(input,genomeRanges,helperRanges,flank,
-    strandedParams=list(strand=NULL,ignoreStrand=TRUE),bamParams=NULL) {
+    strandedParams=list(strand=NULL,ignoreStrand=TRUE),bamParams=NULL,rc=NULL) {
     leftRanges <- getFlankingRanges(helperRanges,flank[1],"upstream")
     rightRanges <- getFlankingRanges(helperRanges,flank[2],"downstream")
     
@@ -667,15 +681,15 @@ coverageRnaRef <- function(input,genomeRanges,helperRanges,flank,
         message(" center...")
         input[[n]]$coverage$center <- calcCoverage(theRanges,genomeRanges,
             strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand)
+            ignore.strand=strandedParams$ignoreStrand,rc=rc)
         message(" upstream...")
         input[[n]]$coverage$upstream <- calcCoverage(theRanges,leftRanges,
             strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand)
+            ignore.strand=strandedParams$ignoreStrand,rc=rc)
         message(" downstream...")
         input[[n]]$coverage$downstream <- calcCoverage(theRanges,rightRanges,
             strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand)
+            ignore.strand=strandedParams$ignoreStrand,rc=rc)
     }
     return(input)
 }
@@ -710,7 +724,7 @@ getFlankingRanges <- function(ranges,flank,dir=c("upstream","downstream")) {
     }
 }
 
-calcCoverage <- function(input,mask,strand=NULL,ignore.strand=TRUE) {
+calcCoverage <- function(input,mask,strand=NULL,ignore.strand=TRUE,rc=NULL) {
     if (!is(input,"GRanges") && !is.list(input) && is.character(input)
         && !file.exists(input))
         stop("The input argument must be a GenomicRanges object or a valid ",
@@ -729,9 +743,10 @@ calcCoverage <- function(input,mask,strand=NULL,ignore.strand=TRUE) {
     index <- 1:length(mask)
     #message("Calculating coverage...")
     if (isBam)
-        cov <- cmclapply(index,coverageFromBam,mask,input,ignore.strand)
+        cov <- cmclapply(index,coverageFromBam,mask,input,ignore.strand,rc=rc)
     else
-        cov <- cmclapply(index,coverageFromRanges,mask,input,ignore.strand)
+        cov <- cmclapply(index,coverageFromRanges,mask,input,ignore.strand,
+            rc=rc)
     names(cov) <- names(mask)
     gc(verbose=FALSE)
     #message("Done!")
@@ -942,6 +957,14 @@ binCoverageMatrix <- function(cvrg,binSize=1000,stat=c("mean","median"),
         }
     }
     tmp <- cmclapply(tmp,function(x) splitVector(x,binSize,interpolation),rc=rc)
+    ############################################################################
+    # Good try but took too much time...
+    #tmp <- cmclapply(cvrg,function(x) {
+    #    if (is.null(x))
+    #         x <- Rle(rep(0,binSize))
+    #    splitVector(x,binSize,interpolation)
+    #},rc=rc)
+    ############################################################################
     if (stat=="mean") {
         statMatrix <- do.call("rbind",cmclapply(tmp,function(x) 
             unlist(lapply(x,function(y) mean(y))),rc=rc))

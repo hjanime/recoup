@@ -9,7 +9,8 @@
         region = c( "tss", "tes", "genebody", "custom"),
         flank = c(2000, 2000),
         strandedParams = list(strand=NULL, ignoreStrand=TRUE),
-        bamParams = NULL
+        bamParams = NULL,
+        rc = NULL
     )
 }
 \arguments{
@@ -33,6 +34,9 @@
     
     \item{bamParams}{see the \code{bamParams} 
     argument in the main \code{\link{recoup}} function.}
+    
+    \item{rc}{fraction (0-1) of cores to use in a multicore 
+    system. It defaults to \code{NULL} (no parallelization).}
 }
 \value{
     Same as input with the \code{ranges} fields filled.

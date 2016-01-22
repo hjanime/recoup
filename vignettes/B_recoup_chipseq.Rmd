@@ -99,6 +99,14 @@ chip.input <- list(
 )
 ```
 
+All the following examples will use all your cores if you are using a multicore
+system in Linux (not in Windows as the `parallel` package is not supported). If
+you want to restrict the number of cores, use the `rc` argument. In real world
+examples, you _should_ most of the times restrict the number of cores used as
+the memory footprints are quite high in R parallel computations, unless of 
+course you have a lot of memory to spare. We are working to improve that at 
+least for `recoup`!
+
 ### TSS profiles
 
 `recoup` supports several pre-defined and typical locations for creating genomic
@@ -126,8 +134,7 @@ test <- recoup(
     genome=genome,
     flank=c(2000,2000),
     selector=NULL,
-    plotParams=list(plot=FALSE),
-    rc=0.5
+    plotParams=list(plot=FALSE)
 )
 
 plot(test$plots$profile)
@@ -147,8 +154,7 @@ test <- recoup(
     binParams=list(regionBinSize=100),
     selector=NULL,
     plotParams=list(plot=FALSE,heatmapScale="common"),
-    saveParams=list(ranges=TRUE,coverage=TRUE,profile=TRUE),
-    rc=0.5
+    saveParams=list(ranges=TRUE,coverage=TRUE,profile=TRUE)
 )
 
 plot(test$plots$profile)
@@ -172,8 +178,7 @@ test <- recoup(
     selector=NULL,
     plotParams=list(plot=FALSE,profile=FALSE,heatmapScale="common",
         heatmapFactor=0.5),
-    saveParams=list(ranges=TRUE,coverage=TRUE,profile=TRUE),
-    rc=0.5
+    saveParams=list(ranges=TRUE,coverage=TRUE,profile=TRUE)
 )
 
 draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
@@ -189,8 +194,7 @@ test <- recoup(
     genome=genome,
     flank=c(2000,2000),
     binParams=list(regionBinSize=100),
-    selector=NULL,
-    rc=0.5
+    selector=NULL
 )
 
 #plot(test$plots$profile)
@@ -214,8 +218,7 @@ test <- recoup(
     flank=c(1000,1000),
     binParams=list(flankBinSize=0,regionBinSize=0),
     plotParams=list(plot=FALSE,heatmap=FALSE),
-    selector=NULL,
-    rc=0.5
+    selector=NULL
 )
 
 plot(test$plots$profile)
@@ -234,8 +237,7 @@ test <- recoup(
     flank=c(2000,2000),
     binParams=list(flankBinSize=50,regionBinSize=200),
     plotParams=list(plot=FALSE),
-    selector=NULL,
-    rc=0.5
+    selector=NULL
 )
 
 plot(test$plots$profile)
@@ -257,8 +259,7 @@ test <- recoup(
     binParams=list(flankBinSize=50,regionBinSize=200),
     selector=NULL,
     plotParams=list(plot=FALSE),
-    kmParams=list(k=4,reference="WT_H4K20me1"),
-    rc=0.5
+    kmParams=list(k=4,reference="WT_H4K20me1")
 )
 
 plot(test$plots$profile)
@@ -283,8 +284,7 @@ test <- recoup(
     binParams=list(flankBinSize=50,regionBinSize=200),
     selector=NULL,
     preprocessParams=list(normalize="none"),
-    plotParams=list(plot=FALSE),
-    rc=0.5
+    plotParams=list(plot=FALSE)
 )
 
 plot(test$plots$profile)
@@ -312,8 +312,7 @@ test <- recoup(
     binParams=list(flankBinSize=50,regionBinSize=100,sumStat="mean",
         smooth=TRUE,forceHeatmapBinning=FALSE),
     plotParams=list(plot=FALSE),
-    selector=NULL,
-    rc=0.5
+    selector=NULL
 )
 
 plot(test$plots$profile)
@@ -339,12 +338,19 @@ test <- recoup(
     binParams=list(flankBinSize=50,regionBinSize=100,sumStat="mean",
         smooth=TRUE,forceHeatmapBinning=FALSE),
     selector=NULL,
-    plotParams=list(plot=FALSE,profile=FALSE),
-    rc=0.5
+    plotParams=list(plot=FALSE,profile=FALSE)
 )
 
 draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
 ```
+
+__Note__: In all cases, the ordering of the profiles as well as well as the 
+elements (genomic areas) belonging to a group wheh using design files for 
+grouping, can be acquired either from the `rownames` of the `profile` member
+of the `recoup$data` output list object, or from the `design` member of the 
+`recoup` output object. From the `design` member you can also extract the number
+of elements in each group, which is very useful especially in the case of 
+applying k-means clustering to the profiles.
 
 ## R session information
 
