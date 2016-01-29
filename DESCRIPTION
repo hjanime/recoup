@@ -9,8 +9,10 @@ Depends:
     GenomicRanges,
     GenomicAlignments,
     ggplot2,
-    ComplexHeatmap
+    ComplexHeatmap,
+    bigmemory
 Imports:
+    biganalytics,
     BiocGenerics,
     biomaRt,
     circlize,
@@ -47,8 +49,8 @@ biocViews: Software, GeneExpression, Preprocessing, QualityControl,
 VignetteBuilder: knitr
 Authors@R: c(person(given="Panagiotis", family="Moulos",
     email="moulos@fleming.gr", role=c("aut", "cre")))
-Version: 0.12.0
-Date: 2016-01-22
+Version: 0.2.0
+Date: 2016-01-29
 Collate:
     'annotation.R'
     'argcheck.R'

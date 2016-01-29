@@ -60,7 +60,9 @@ covers basic usage of the package, it offers the basis for more sophisticated
 usage. recoup is not as fast as ngs.plot but we are working on this! Also, 
 recoup is not here to replace other more mature packages. It is here to offer 
 more options to users that need more sophisticated genomic profile 
-visualizations.
+visualizations. Finally, it offers a very flexible way to reuse genomic profiles
+whose calculations may be computationally and time expensive by offering a smart
+way to recognize which parameters have changed and acting based on these.
 
 ## 1. Getting started
 
