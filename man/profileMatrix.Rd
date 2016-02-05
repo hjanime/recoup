@@ -2,7 +2,7 @@
 \alias{profileMatrix}
 \title{Calculate final profile matrices for plotting}
 \usage{
-    profileMatrix(input, region, binParams, rc = NULL)
+    profileMatrix(input, flank, binParams, rc = NULL)
 }
 \arguments{
     \item{input}{an input list as in \code{\link{recoup}} but
@@ -11,7 +11,7 @@
     \code{\link{preprocessRanges}} and 
     \code{\link{coverageRef}}).}
 
-    \item{region}{see the \code{region} argument in the 
+    \item{flank}{see the \code{flank} argument in the 
     main \code{\link{recoup}} function.}
     
     \item{binParams}{see the \code{binParams} argument in 
@@ -43,7 +43,7 @@ test.input <- coverageRef(
 )
 test.input <- profileMatrix(
     test.input,
-    region="tss",
+    flank=c(2000,2000),
     binParams=list(flankBinSize=50,regionBinSize=150,
         sumStat="mean",smooth=TRUE),
     rc=0.5

@@ -7,9 +7,11 @@ recoup <- function(
         "susscr3"),
     refdb=c("ensembl","ucsc","refseq"),
     flank=c(2000,2000),
+    fraction=1,
     orderBy=list(
-        what=c("none","suma","sumn","maxa","maxn","hcn"),
-        order=c("descending","ascending")
+        what=c("none","suma","sumn","maxa","maxn","avga","avgn","hcn"),
+        order=c("descending","ascending"),
+        custom=NULL
     ),
     #orderBy=getDefaultListArgs("orderBy"),
     binParams=list(
@@ -22,11 +24,7 @@ recoup <- function(
         forcedBinSize=c(50,200)
     ),
     #binParams=getDefaultListArgs("binParams"),
-    selector=list(
-        id=NULL,
-        biotype=getBiotypes(genome),
-        exonType=NULL
-    ),
+    selector=NULL,
     #selector=getDefaultListArgs("selector"),
     preprocessParams=list(
         normalize=c("none","linear","downsample","sampleto"),
@@ -40,9 +38,13 @@ recoup <- function(
         plot=TRUE,
         profile=TRUE,
         heatmap=TRUE,
+        correlation=TRUE,
         signalScale=c("natural","log2"),
         heatmapScale=c("common","each"),
         heatmapFactor=1,
+        singleFacet=c("none","wrap","grid"),
+        multiFacet=c("wrap","grid"),
+        conf=TRUE,
         device=c("x11","png","jpg","tiff","bmp","pdf","ps"),
         outputDir=".",
         outputBase=NULL
@@ -53,7 +55,8 @@ recoup <- function(
         coverage=TRUE,
         profile=TRUE,
         profilePlot=TRUE,
-        heatmapPlot=TRUE
+        heatmapPlot=TRUE,
+        correlationPlot=TRUE
     ),
     #saveParams=getDefaultListArgs("saveParams"),
     kmParams=list(
@@ -86,7 +89,7 @@ recoup <- function(
         main=list(
             cluster_rows=ifelse(length(grep("hc",orderBy$what))>0,TRUE,FALSE),
             cluster_columns=FALSE,
-            column_title_gp=grid::gpar(fontsize=12,font=2),
+            column_title_gp=grid::gpar(fontsize=10,font=2),
             show_row_names=FALSE,
             show_column_names=FALSE,
             heatmap_legend_param=list(
@@ -96,10 +99,10 @@ recoup <- function(
         group=list(
             cluster_rows=ifelse(length(grep("hc",orderBy$what))>0,TRUE,FALSE),
             cluster_columns=FALSE,
-            column_title_gp=grid::gpar(fontsize=12,font=2),
+            column_title_gp=grid::gpar(fontsize=10,font=2),
             show_row_names=FALSE,
             show_column_names=FALSE,
-            row_title_gp=grid::gpar(fontsize=10,font=2),
+            row_title_gp=grid::gpar(fontsize=8,font=2),
             gap=unit(5,"mm"),
             heatmap_legend_param=list(
                 color_bar="continuous"
@@ -112,11 +115,28 @@ recoup <- function(
     localDbHome=file.path(path.expand("~"),".recoup"),
     rc=NULL
 ) {
+    ############################################################################
+    # Begin of simple parameter checking for a new or a restored object
+    if (is.list(input) && !is.null(input$data)) { # Refeeding recoup object
+        message("Detected a previous recoup output as input. Any existing ",
+            "data requiring\nlengthy calculations (short reads, coverages and ",
+            "profile matrices will be\nreused depending on other parameters. ",
+            "If you want a complete recalculation,\neither input a fresh list ",
+            "of arguments or remove any of the above with the\nremoveData ",
+            "function.\n")
+        prevCallParams <- input$callopts
+        input <- input$data
+    }
+    else
+        prevCallParams <- NULL
     if (!is.list(input) && file.exists(input))
         input <- readConfig(input)
     checkInput(input)
     if (is.null(names(input)))
         names(input) <- sapply(input,function(x) return(x$id))
+    
+    # Check if there are any mispelled or invalid parameters and throw a warning
+    checkMainArgs(as.list(match.call()))
     
     # Check rest of arguments
     region <- tolower(region[1])
@@ -131,7 +151,7 @@ recoup <- function(
             "dm3","danrer7","pantro4","susscr3","tair10"),multiarg=FALSE)
     checkTextArgs("refdb",refdb,c("ensembl","ucsc","refseq"),multiarg=FALSE)
     checkTextArgs("type",type,c("chipseq","rnaseq"),multiarg=FALSE)
-    #checkNumArgs("flank",flank,"integer",c(-50000,50000),"both")
+    checkNumArgs("fraction",fraction,"numeric",c(0,1),"botheq")
     if (any(abs(flank)<500))
         stop("The minimum flanking allowed is 500 bp")
     if (any(abs(flank)>50000))
@@ -177,31 +197,113 @@ recoup <- function(
     if (is.null(plotParams$outputBase))
         plotParams$outputBase <- paste(sapply(input,function(x) return(x$id)),
             collapse="-")
-        
-    # Check compatibility of orderBy argument and ComplexHeatmap parameters
-    # Hierarchical clustering asked in orderBy but otherwise in the heatmap
-    # parameters. Clustering is performed.
-    if (length(grep("hc",orderBy$what))>0
-        && !(complexHeatmapParams$main$cluster_rows 
-        || complexHeatmapParams$group$cluster_rows)) {
-        warning("Hierarchical clustering asked in the orderBy parameter but ",
-            "is set to FALSE in complexHeatmapParams! Will auto-correct to ",
-            "perform hierarchical clustering ordering...",immediate.=TRUE)
-        complexHeatmapParams$main$cluster_rows <- TRUE
-        complexHeatmapParams$group$cluster_rows <- TRUE
+    # End of simple parameter checking for a new or a restored object
+    ############################################################################
+    
+    ############################################################################
+    # Begin of complex parameter storage procedure and parameter recall from a
+    # previous call
+    
+    # Store all parameters to an obect for later reference to a next call, after
+    # checking if something has changed (e.g. using setr)...
+    thisCall <- as.list(match.call())[-1]
+    if (!is.null(prevCallParams)) {
+        callParams <- list(
+            region=if (is.null(thisCall$region)) prevCallParams$region else
+                region,
+            type=if (is.null(thisCall$type)) prevCallParams$type else type,
+            genome=if (is.null(thisCall$genome)) prevCallParams$genome else
+                genome,
+            refdb=if (is.null(thisCall$refdb)) prevCallParams$refdb else
+                refdb,
+            flank=if (is.null(thisCall$flank)) prevCallParams$flank else flank,
+            fraction=if (is.null(thisCall$fraction)) prevCallParams$fraction
+                else fraction,
+            orderBy=if (is.null(thisCall$orderBy)) prevCallParams$orderBy else
+                orderBy,
+            binParams=if (is.null(thisCall$binParams)) prevCallParams$binParams
+                else binParams,
+            selector=selector, # selector is a special case
+            preprocessParams=if (is.null(thisCall$preprocessParams))
+                prevCallParams$preprocessParams else preprocessParams,
+            plotParams=if (is.null(thisCall$plotParams)) 
+                prevCallParams$plotParams else plotParams,
+            saveParams=if (is.null(thisCall$saveParams))
+                prevCallParams$saveParams else saveParams,
+            kmParams=if (is.null(thisCall$kmParams))
+                prevCallParams$kmParams else kmParams,
+            strandedParams=if (is.null(thisCall$strandedParams))
+                prevCallParams$strandedParams else strandedParams,
+            ggplotParams=if (is.null(thisCall$ggplotParams))
+                prevCallParams$ggplotParams else ggplotParams,
+            complexHeatmapParams=if (is.null(thisCall$complexHeatmapParams))
+                prevCallParams$complexHeatmapParams else complexHeatmapParams,
+            #bamParams=if (is.null(thisCall$bamParams),
+            #    prevCallParams$bamParams,bamParams), ## Unused
+            onTheFly=if (is.null(thisCall$onTheFly)) prevCallParams$onTheFly 
+                else onTheFly,
+            localDbHome=if (is.null(thisCall$localDbHome)) 
+                prevCallParams$localDbHome else localDbHome,
+            rc=if (is.null(thisCall$rc)) prevCallParams$rc else rc,
+            customIsBase=NULL # Additional placeholder
+        )
     }
-    # Hierarchical clustering asked in heatmap parameters but not in the 
-    # orderBy directives. Clustering is not performed.
-    if ((complexHeatmapParams$main$cluster_rows 
-        || complexHeatmapParams$group$cluster_rows)
-        && length(grep("hc",orderBy$what))==0) {
-        warning("Hierarchical clustering asked in the complexHeatmapParams ",
-            "parameter but not in orderBy parameter! Hierarchical clustering ",
-            "in the heatmap profile will be turned off",immediate.=TRUE)
-        complexHeatmapParams$main$cluster_rows <- FALSE
-        complexHeatmapParams$group$cluster_rows <- FALSE
+    else {
+        callParams <- list(
+            region=region,
+            type=type,
+            genome=genome,
+            refdb=refdb,
+            flank=flank,
+            fraction=fraction,
+            orderBy=orderBy,
+            binParams=binParams,
+            selector=selector,
+            preprocessParams=preprocessParams,
+            plotParams=plotParams,
+            saveParams=saveParams,
+            kmParams=kmParams,
+            strandedParams=strandedParams,
+            ggplotParams=ggplotParams,
+            complexHeatmapParams=complexHeatmapParams,
+            bamParams=bamParams,
+            onTheFly=onTheFly,
+            localDbHome=localDbHome,
+            rc=rc,
+            customIsBase=NULL # Additional placeholder
+        )
     }
     
+    # ...and check if there has been a previous call and decide on big
+    # recalculations...
+    input <- decideChanges(input,callParams,prevCallParams)
+    
+    # Redefine all final arguments for this call
+    region=callParams$region
+    type=callParams$type
+    genome=callParams$genome
+    refdb=callParams$refdb
+    flank=callParams$flank
+    fraction=callParams$fraction
+    orderBy=callParams$orderBy
+    binParams=callParams$binParams
+    selector=callParams$selector
+    preprocessParams=callParams$preprocessParams
+    plotParams=callParams$plotParams
+    saveParams=callParams$saveParams
+    kmParams=callParams$kmParams
+    strandedParams=callParams$strandedParams
+    ggplotParams=callParams$ggplotParams
+    complexHeatmapParams=callParams$complexHeatmapParams
+    bamParams=callParams$bamParams
+    onTheFly=callParams$onTheFly
+    localDbHome=callParams$localDbHome
+    rc=callParams$rc
+    # End of complex parameter storage procedure and parameter recall from a
+    # previous call
+    ############################################################################
+    
+    # Continue with actual work
     if (!is.data.frame(genome)) {
         if (file.exists(genome)) {
             genome <- read.delim(genome) # Must be bed like
@@ -246,7 +348,7 @@ recoup <- function(
                         seqnames.field="chromosome"
                     )
                     message("Merging exons")
-                    ann.gr <- reduceExons(ann.gr,multic=multic)
+                    ann.gr <- reduceExons(ann.gr,rc=rc)
                     names(ann.gr) <- as.character(ann.gr$exon_id)
                     genomeRanges <- split(ann.gr,ann.gr$gene_id)
                 }
@@ -259,6 +361,16 @@ recoup <- function(
             df=genome,
             keep.extra.columns=TRUE
         )
+    }
+    
+    # After genome read, check if we have a valid custom orderer
+    if (!is.null(orderBy$custom)) {
+        if (length(orderBy$custom) != nrow(genome)) {
+            warning("The custom orderer provide with orderBy parameter does ",
+                "not have length equal to the number of elements in genome ",
+                "argument and will be ignored!",immediate.=TRUE)
+            orderBy$custom <- NULL
+        }
     }
     
     # Read and check design compatibilities. Check if k-means is requested and
@@ -281,6 +393,14 @@ recoup <- function(
         if (length(input)==1 && nfac>2 && kmParams$k>0)
             stop("The maximum number of allowed design factors when k-means ",
                 "clustering is requested is 2")
+        if (length(input)==1 && nfac>2 && plotParams$singleFacet!="none")
+            stop("The maximum number of allowed design factors whith one ",
+                "sample but wishing a gridded profile layout is 2")
+        if (length(input)==1 && nfac>1 && kmParams$k>0 
+            && plotParams$singleFacet!="none")
+            stop("The maximum number of allowed design factors whith one ",
+                "sample but wishing for k-means clustering and gridded ",
+                "profile layout is 1")
         # Reduce the genomeRanges according to design or the other way
         if (nrow(design)>length(genomeRanges))
             design <- tryCatch({
@@ -334,6 +454,34 @@ recoup <- function(
     # field in input
     #if (!onTheFly)
     input <- preprocessRanges(input,preprocessParams,bamParams=bamParams,rc=rc)
+    
+    # At this point we must apply the fraction parameter if <1. We choose this
+    # point in order not to restrict later usage of the read ranges and since it
+    # does not take much time to load into memory
+    if (fraction<1) {
+        newSize <- round(fraction*length(genomeRanges))
+        set.seed(preprocessParams$seed)
+        refIndex <- sort(sample(length(genomeRanges),newSize))
+        genomeRanges <- genomeRanges[refIndex]
+        if (type=="rnaseq")
+            helperRanges <- helperRanges[refIndex]
+        for (i in 1:length(input)) {
+            newSize <- round(fraction*length(input[[i]]$ranges))
+            set.seed(preprocessParams$seed)
+            fracIndex <- sort(sample(length(input[[i]]$ranges),newSize))
+            input[[i]]$ranges <- input[[i]]$ranges[fracIndex]
+            if (!is.null(input[[i]]$coverage)) {
+                #if (!is.null(input[[i]]$coverage$center)) {
+                #    input[[i]]$coverage$center <- 
+                #        input[[i]]$coverage$center[refIndex]
+                #}
+                #else
+                input[[i]]$coverage <- input[[i]]$coverage[refIndex]
+            }
+            if (!is.null(input[[i]]$profile))
+                input[[i]]$profile <- input[[i]]$profile[refIndex,]
+        }
+    }
 
     # Remove unwanted seqnames from reference ranges
     chrs <- unique(unlist(lapply(input,function(x) {
@@ -360,9 +508,9 @@ recoup <- function(
     
     # Now we must follow two paths according to region type, genebody and custom
     # areas with equal/unequal widths, or tss, tes and 1-width custom areas
-    customOne <- FALSE
+    callParams$customIsBase <- FALSE
     if (region=="custom" && all(width(genomeRanges)==1))
-        customOne <- FALSE
+        callParams$customIsBase <- TRUE
     if (type=="chipseq")
         input <- coverageRef(input,genomeRanges,region,flank,strandedParams,
             rc=rc)#,bamParams)
@@ -376,26 +524,18 @@ recoup <- function(
         for (n in names(input)) {
             if (linFac[n]==1)
                 next
-            if (is.null(input[[n]]$coverage$center))
-                input[[n]]$coverage <- cmclapply(input[[n]]$coverage,
-                    function(x,f) {
-                        return(x*f)
-                    },linFac[n]
-                )
-            else {
-                input[[n]]$coverage$center <- 
-                    cmclapply(input[[n]]$coverage$center,function(x,f) {
-                        return(x*f)
-                    },linFac[n])
-                input[[n]]$coverage$upstream <- 
-                    cmclapply(input[[n]]$coverage$upstream,function(x,f) {
-                        return(x*f)
-                    },linFac[n])
-                input[[n]]$coverage$downstream <- 
-                    cmclapply(input[[n]]$coverage$downstream,function(x,f) {
-                        return(x*f)
-                    },linFac[n])
-            }
+            #if (is.null(input[[n]]$coverage$center))
+            input[[n]]$coverage <- cmclapply(input[[n]]$coverage,
+                function(x,f) {
+                    return(x*f)
+                },linFac[n]
+            )
+            #else {
+            #    input[[n]]$coverage$center <- 
+            #        cmclapply(input[[n]]$coverage$center,function(x,f) {
+            #            return(x*f)
+            #        },linFac[n])
+            #}
         }
     }
     
@@ -417,82 +557,33 @@ recoup <- function(
             binParams$regionBinSize <- 1000
         }
     }
-    input <- profileMatrix(input,region,binParams,rc)
+    input <- profileMatrix(input,flank,binParams,rc)
     
     # Perform the k-means clustering if requested and append to design (which
     # has been checked, if we are allowed to do so)
-    if (kmParams$k>0) {
-        if (is.null(kmParams$reference)) {
-            # Merge matrices to one and perform k-means. As normally coverages 
-            # are normalized (the user is responsible to tell recoup how to do 
-            # this and has been done at this point), we are legalized to do that
-            message("Performing k-means (k=",kmParams$k,") clustering on ",
-                "total profiles")
-            theBigMatrix <- do.call("cbind",lapply(input,function(x) {
-                return(x$profile)
-            }))
-            set.seed(kmParams$seed)
-            kcl <- kmeans(theBigMatrix,centers=kmParams$k,
-                iter.max=kmParams$iterMax,nstart=kmParams$nstart,
-                algorithm=kmParams$algorithm)
-        }
-        else {
-            message("Performing k-means (k=",kmParams$k,") clustering using ",
-                "the ",input[[kmParams$reference]]$name," sample profile as ",
-                "reference")
-            set.seed(kmParams$seed)
-            kcl <- kmeans(input[[kmParams$reference]]$profile,
-                centers=kmParams$k,iter.max=kmParams$iterMax,
-                nstart=kmParams$nstart,algorithm=kmParams$algorithm)
-        }
-        kmorder <- kcl$cluster
-        #names(kmorder) <- rownames(input[[1]]$profile)
-        if (!is.null(design)) {
-            kmorder <- kmorder[rownames(design)]
-            design$kcluster <- as.factor(paste("Cluster",kmorder))
-        }
-        else {
-            design <- data.frame(kcluster=paste("Cluster",kmorder))
-            rownames(design) <- names(kmorder)
-        }
-    }
-    
-    # Attach some config options for profile and heatmap. irrespectively of 
-    # subsequent plotting
-    plotOpts <- list(
-        xAxisParams=list(
-            region=region,
-            flank=flank,
-            customIsBase=customOne
-        ),
-        yAxisParams=list(
-            signalScale=plotParams$signalScale,
-            heatmapScale=plotParams$heatmapScale,
-            heatmapFactor=plotParams$heatmapFactor
-        ),
-        binParams=binParams,
-        orderBy=orderBy,
-        ggplotParams=ggplotParams,
-        complexHeatmapParams=complexHeatmapParams
-    )
+    if (kmParams$k>0)
+        design <- kmeansDesign(input,design,kmParams)
     
     # Coverages and profiles calculated... Now depending on plot option, we go 
     # further or return the enriched input object for saving
     if (!plotParams$profile && !plotParams$heatmap) {
-        recoupObj <- toOutput(input,design,saveParams,plotOpts)
+        recoupObj <- toOutput(input,design,saveParams,callParams=callParams)
         return(recoupObj)
     }
-    else
-        recoupObj <- toOutput(input,design,
-            list(ranges=TRUE,coverage=TRUE,profile=TRUE),plotOpts)
+    else {
+        recoupObj <- toOutput(input,design,list(ranges=TRUE,coverage=TRUE,
+            profile=TRUE),callParams=callParams)
+    }
             
     ## Our plot objects
     recoupPlots <- list()
     
     # We must pass the matrices to plotting function
     if (plotParams$profile) {
-        message("Constructing genomic coverage profile curve")
-        theProfile <- recoupProfile(recoupObj,rc=rc)
+        message("Constructing genomic coverage profile curve(s)")
+        #theProfile <- recoupProfile(recoupObj,rc=rc)
+        recoupObj <- recoupProfile(recoupObj,rc=rc)
+        theProfile <- getr(recoupObj,"profile")
         recoupPlots$profilePlot <- theProfile
     }
     
@@ -500,38 +591,38 @@ recoup <- function(
     # take insanely long time and space to draw/store
     if (plotParams$heatmap) {
         # Inform the user about enforced binning (or not)
-        if (region %in% c("tss","tes") || customOne) {
+        if (region %in% c("tss","tes") || callParams$customIsBase) {
             if (binParams$regionBinSize==0 && binParams$forceHeatmapBinning) {
                 message("The resolution of the requested profiles will be ",
-                    "lowered to avoid increased computation time and/or ",
+                    "lowered to avoid\nincreased computation time and/or ",
                     "storage space for heatmap profiles...")
                 
             }
             else if (binParams$regionBinSize==0
                 && !binParams$forceHeatmapBinning)
                 warning("forceHeatmapBinning is turned off for high ",
-                    "resolution plotting. Be prepared for long computational ",
+                    "resolution plotting. Be prepared for\nlong computational ",
                     "times and big figures!",immediate.=TRUE)
         }
         else {
             if ((binParams$regionBinSize==0 || binParams$flankBinSize==0)
                 && binParams$forceHeatmapBinning) {
                 message("The resolution of the requested profiles will be ",
-                    "lowered to avoid increased computation time and/or ",
+                    "lowered to avoid\nincreased computation time and/or ",
                     "storage space for heatmap profiles...")
                 
             }
             else if ((binParams$regionBinSize==0 || binParams$flankBinSize==0)
                 && !binParams$forceHeatmapBinning)
                 warning("forceHeatmapBinning is turned off for high ",
-                    "resolution plotting. Be prepared for long computational ",
+                    "resolution plotting. Be prepared for\nlong computational ",
                     "times and big figures!",immediate.=TRUE)
         }
         
         if (binParams$forceHeatmapBinning 
             && (binParams$regionBinSize==0 || binParams$flankBinSize==0)) {
             helpInput <- recoupObj$data
-            if (region %in% c("tss","tes") || customOne) {
+            if (region %in% c("tss","tes") || callParams$customIsBase) {
                 for (n in names(helpInput)) {
                     message("Calculating ",region," profile for ",
                         helpInput[[n]]$name)
@@ -539,6 +630,7 @@ recoup <- function(
                         binCoverageMatrix(helpInput[[n]]$coverage,
                             binSize=binParams$forcedBinSize[2],
                             stat=binParams$sumStat,rc=rc)
+                    helpInput[[n]]$profile <- helpInput[[n]]$profile
                 }
             }
             else {
@@ -546,19 +638,40 @@ recoup <- function(
                     message("Calculating ",region," profile for ",
                         helpInput[[n]]$name)
                     message(" center")
-                    center <- binCoverageMatrix(helpInput[[n]]$coverage$center,
-                        binSize=binParams$forcedBinSize[2],
-                        stat=binParams$sumStat,rc=rc)                   
+                    #center <- binCoverageMatrix(helpInput[[n]]$coverage$center,
+                    #    binSize=binParams$forcedBinSize[2],
+                    #    stat=binParams$sumStat,rc=rc)
+                    center <- binCoverageMatrix(
+                        input[[n]]$coverage,binSize=binParams$forcedBinSize[2],
+                        stat=binParams$sumStat,
+                        interpolation=binParams$interpolation,
+                        flank=flank,where="center",rc=rc
+                    )
                     message(" upstream")
-                    left <- binCoverageMatrix(helpInput[[n]]$coverage$upstream,
-                        binSize=binParams$forcedBinSize[1],
-                        stat=binParams$sumStat,rc=rc)
+                    #left <- binCoverageMatrix(helpInput[[n]]$coverage$upstream,
+                    #    binSize=binParams$forcedBinSize[1],
+                    #    stat=binParams$sumStat,rc=rc)
+                    left <- binCoverageMatrix(
+                        input[[n]]$coverage,binSize=binParams$forcedBinSize[1],
+                        stat=binParams$sumStat,
+                        interpolation=binParams$interpolation,flank=flank,
+                        where="upstream",rc=rc
+                    )
                     message(" downstream")
+                    #right <- binCoverageMatrix(
+                    #    helpInput[[n]]$coverage$downstream,
+                    #    binSize=binParams$forcedBinSize[1],
+                    #    stat=binParams$sumStat,rc=rc)
                     right <- binCoverageMatrix(
-                        helpInput[[n]]$coverage$downstream,
-                        binSize=binParams$forcedBinSize[1],
-                        stat=binParams$sumStat,rc=rc)
+                        input[[n]]$coverage,binSize=forcedBinSize[1],
+                        stat=binParams$sumStat,
+                        interpolation=binParams$interpolation,flank=flank,
+                        where="downstream",rc=rc
+                    )
                     helpInput[[n]]$profile <- cbind(left,center,right)
+                    rownames(helpInput[[n]]$profile) <-
+                        names(input[[n]]$coverage)
+                    helpInput[[n]]$profile <- helpInput[[n]]$profile
                 }
             }
         }
@@ -567,8 +680,11 @@ recoup <- function(
         
         helpObj <- recoupObj
         helpObj$data <- helpInput
-        message("Constructing genomic coverage heatmap")
-        theHeatmap <- recoupHeatmap(helpObj,rc=rc)
+        message("Constructing genomic coverage heatmap(s)")
+        #theHeatmap <- recoupHeatmap(helpObj,rc=rc)
+        helpObj <- recoupHeatmap(helpObj,rc=rc)
+        theHeatmap <- getr(helpObj,"heatmap")
+        recoupObj <- setr(recoupObj,"heatmap",theHeatmap)
         recoupPlots$heatmapPlot <- theHeatmap
         
         # Derive the main heatmap in case of hierarchical clustering        
@@ -591,389 +707,33 @@ recoup <- function(
         }
     }
     
-    # Overwrite final object so as to return it
-    recoupObj <- toOutput(input,design,saveParams,plotOpts,recoupPlots)
+    # We must pass the matrices to plotting function
+    if (plotParams$correlation) {
+        message("Constructing coverage correlation profile curve(s)")
+        recoupObj <- recoupCorrelation(recoupObj,rc=rc)
+        theCorrelation <- getr(recoupObj,"correlation")
+        recoupPlots$correlationPlot <- theCorrelation
+    }
     
-    # Make make any plots asked
-    if (plotParams$plot)
-        recoupPlot(recoupObj,plotParams,mainh)
+    # Overwrite final object so as to return it
+    recoupObj <- toOutput(input,design,saveParams,recoupPlots,callParams)
+    
+    # Make any plots asked
+    if (plotParams$plot) {
+        what <- character(0)
+        if (plotParams$profile)
+            what <- c(what,"profile")
+        if (plotParams$heatmap)
+            what <- c(what,"heatmap")
+        if (plotParams$correlation)
+            what <- c(what,"correlation")
+        if (length(what)>0)
+            recoupPlot(recoupObj,what,plotParams$device,plotParams$outputDir,
+                plotParams$outputBase,mainh)
+    }
     
     # Return the enriched input object according to save options
     return(recoupObj)
-}
-
-coverageRef <- function(input,genomeRanges,region=c("tss","tes","genebody",
-    "custom"),flank=c(2000,2000),strandedParams=list(strand=NULL,
-    ignoreStrand=TRUE),bamParams=NULL,rc=NULL) {
-    
-    if (region %in% c("tss","tes","custom")) {
-        if (region %in% c("tss","tes"))
-            input <- coverageBaseRef(input,genomeRanges,region,flank,
-                strandedParams,rc=rc)#,bamParams)
-        else if (region=="custom") {
-            if (all(width(genomeRanges)==1))
-                input <- coverageBaseRef(input,genomeRanges,region,flank,
-                    strandedParams,rc=rc)#,bamParams)
-            else
-                input <- coverageAreaRef(input,genomeRanges,region,flank,
-                    strandedParams,rc=rc)#,bamParams)
-        }
-    }
-    else # is genebody
-        input <- coverageAreaRef(input,genomeRanges,region,flank,strandedParams,
-            rc=rc)#,bamParams)
-    return(input)
-}
-
-coverageBaseRef <- function(input,genomeRanges,region,flank,strandedParams,
-    rc=NULL) {
-    mainRanges <- getRegionalRanges(genomeRanges,region,flank)
-    names(input) <- sapply(input,function(x) return(x$id))
-    for (n in names(input)) {
-        message("Calculating ",region," coverage for ",input[[n]]$name)
-        if (!is.null(input[[n]]$ranges))
-            input[[n]]$coverage <- calcCoverage(input[[n]]$ranges,mainRanges,
-                strand=strandedParams$strand,
-                ignore.strand=strandedParams$ignoreStrand,rc=rc)
-        else
-            input[[n]]$coverage <- calcCoverage(input[[n]]$file,mainRanges,
-                strand=strandedParams$strand,
-                ignore.strand=strandedParams$ignoreStrand,rc=rc)
-    }
-    return(input)
-}
-
-coverageAreaRef <- function(input,genomeRanges,region,flank,strandedParams,
-    bamParams=NULL,rc=NULL) {
-    mainRanges <- getRegionalRanges(genomeRanges,region,flank)
-    leftRanges <- getFlankingRanges(mainRanges,flank[1],"upstream")
-    rightRanges <- getFlankingRanges(mainRanges,flank[2],"downstream")
-    
-    names(input) <- sapply(input,function(x) return(x$id))
-    for (n in names(input)) {
-        theRanges <- splitBySeqname(input[[n]]$ranges,rc=rc)
-        message("Calculating ",region," coverage for ",input[[n]]$name)
-        message(" center...")
-        input[[n]]$coverage$center <- calcCoverage(theRanges,mainRanges,
-            strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand,rc=rc)
-        message(" upstream...")
-        input[[n]]$coverage$upstream <- calcCoverage(theRanges,leftRanges,
-            strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand,rc=rc)
-        message(" downstream...")
-        input[[n]]$coverage$downstream <- calcCoverage(theRanges,rightRanges,
-            strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand,rc=rc)
-    }
-    return(input)
-}
-
-coverageRnaRef <- function(input,genomeRanges,helperRanges,flank,
-    strandedParams=list(strand=NULL,ignoreStrand=TRUE),bamParams=NULL,rc=NULL) {
-    leftRanges <- getFlankingRanges(helperRanges,flank[1],"upstream")
-    rightRanges <- getFlankingRanges(helperRanges,flank[2],"downstream")
-    
-    names(input) <- sapply(input,function(x) return(x$id))
-    for (n in names(input)) {
-        theRanges <- splitBySeqname(input[[n]]$ranges)
-        message("Calculating genebody coverage for ",input[[n]]$name)
-        message(" center...")
-        input[[n]]$coverage$center <- calcCoverage(theRanges,genomeRanges,
-            strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand,rc=rc)
-        message(" upstream...")
-        input[[n]]$coverage$upstream <- calcCoverage(theRanges,leftRanges,
-            strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand,rc=rc)
-        message(" downstream...")
-        input[[n]]$coverage$downstream <- calcCoverage(theRanges,rightRanges,
-            strand=strandedParams$strand,
-            ignore.strand=strandedParams$ignoreStrand,rc=rc)
-    }
-    return(input)
-}
-
-getRegionalRanges <- function(ranges,region,flank) {
-    switch(region,
-        genebody = {
-            return(ranges)
-        },
-        tss = {
-            return(promoters(ranges,upstream=flank[1],downstream=flank[2]))
-        },
-        tes = {
-            tmp <- resize(ranges,width=1,fix="end")
-            return(promoters(tmp,upstream=flank[1],downstream=flank[2]))
-        },
-        custom = {
-            if (all(width(ranges)==1))
-                return(promoters(ranges,upstream=flank[1],downstream=flank[2]))
-            else
-                return(ranges)
-        }
-    )
-}
-
-getFlankingRanges <- function(ranges,flank,dir=c("upstream","downstream")) {
-    dir = dir[1]
-    if (dir=="upstream")
-        return(promoters(ranges,upstream=flank,downstream=0))
-    else if (dir=="downstream") {
-        return(flank(ranges,width=flank,start=FALSE,both=FALSE))
-    }
-}
-
-calcCoverage <- function(input,mask,strand=NULL,ignore.strand=TRUE,rc=NULL) {
-    if (!is(input,"GRanges") && !is.list(input) && is.character(input)
-        && !file.exists(input))
-        stop("The input argument must be a GenomicRanges object or a valid ",
-            "BAM file or a list of GenomicRanges")
-    if (!is(mask,"GRanges") && !is(mask,"GRangesList"))
-        stop("The mask argument must be a GRanges or GRangesList object")
-    isBam <- FALSE
-    if (is.character(input) && file.exists(input))
-        isBam <- TRUE
-    if (!is.null(strand) && !is.list(strand) && !isBam) {
-        message("Retrieving ",strand," reads...")
-        input <- input[strand(input)==strand]
-    }
-    if (!is.list(input) && !isBam)
-        input <- splitBySeqname(input)
-    index <- 1:length(mask)
-    #message("Calculating coverage...")
-    if (isBam)
-        cov <- cmclapply(index,coverageFromBam,mask,input,ignore.strand,rc=rc)
-    else
-        cov <- cmclapply(index,coverageFromRanges,mask,input,ignore.strand,
-            rc=rc)
-    names(cov) <- names(mask)
-    gc(verbose=FALSE)
-    #message("Done!")
-    return(cov) # Rle
-}
-
-coverageFromRanges <- function(i,mask,input,ignore.strand) {
-    if (is(mask,"GRangesList"))
-        x <- mask[[i]]
-    else
-        x <- mask[i]
-    y<-list(
-        chromosome=as.character(seqnames(x))[1],
-        start=start(x),
-        end=end(x),
-        strand=as.character(strand(x))[1],
-        reads=NULL,
-        coverage=NULL
-    )
-    if (!is.null(input[[y$chromosome]])) {
-        y$reads <- input[[y$chromosome]][
-            subjectHits(findOverlaps(x,input[[y$chromosome]],
-                ignore.strand=ignore.strand))]
-    }
-    else {
-        message(y$chromosome," not found!")
-        y$reads <- NULL
-    }
-    if (length(y$reads)>0) {
-        tryCatch({
-            cc <- as.character(seqnames(y$reads))[1]
-            y$coverage <- coverage(y$reads)
-            if (length(y$start)>1) { # List of exons, RNA, merge exons
-                i2k <- unlist(lapply(1:length(y$start),function(j,s,e) {
-                    return(s[j]:e[j])
-                },y$start,y$end))
-                y$coverage <- y$coverage[[cc]][i2k]
-            }
-            else
-                y$coverage <- y$coverage[[cc]][y$start:y$end]
-            if (y$strand=="+")
-                return(y$coverage)
-            else if (y$strand=="-")
-                return(rev(y$coverage))
-            else
-                return(y$coverage)
-        },
-        error=function(e) {
-            message("Caught invalid genomic area!")
-            print(mask[i])
-            message("Will return zero coverage")
-            return(NULL)
-        },finally={})
-    }
-    else
-        return(NULL)
-}
-
-coverageFromBam <- function(i,mask,input,ignore.strand,pp) {
-    if (is(mask,"GRangesList"))
-        x <- mask[[i]]
-    else
-        x <- mask[i]
-    y<-list(
-        chromosome=as.character(seqnames(x)),
-        start=start(x),
-        end=end(x),
-        strand=as.character(strand(x)),
-        reads=NULL,
-        coverage=NULL
-    )
-    bam.file <- input
-    bam.index <- paste(input,"bai",sep=".")
-    bp <- ScanBamParam(which=x)
-    
-    switch(pp$spliceAction,
-        keep = {
-            y$reads <- as(readGAlignments(file=bam.file,index=bam.index,
-                param=bp,with.which_label=TRUE),"GRanges")
-        },
-        split = {
-            y$reads <- unlist(grglist(readGAlignments(file=bam.file,
-                index=bam.index,param=bp,with.which_label=TRUE)))
-        },
-        remove = {
-            y$reads <- as(readGAlignments(file=bam.file,index=bam.index,
-                param=bp,with.which_label=TRUE),"GRanges")
-            qu <- quantile(width(y$reads),pp$spliceRemoveQ)
-            rem <- which(width(y$reads)>qu)
-            if (length(rem)>0)
-                y$reads <- y$reads[-rem]
-            message("  Excluded ",length(rem)," reads")
-        }
-    )
-    
-    if (length(y$reads)>0) {
-        tryCatch({
-            seqlevels(y$reads) <- as.character(seqnames(x))
-            cc <- as.character(seqnames(y$reads))[1]
-            y$coverage <- coverage(y$reads)
-            if (length(y$start)>1) { # List of exons, RNA, merge exons
-                i2k <- unlist(lapply(1:length(y$start),function(j,s,e) {
-                    return(s[j]:e[j])
-                },y$start,y$end))
-                y$coverage <- y$coverage[[cc]][i2k]
-            }
-            else
-                y$coverage <- y$coverage[[cc]][y$start:y$end]
-            if (y$strand=="+")
-                return(y$coverage)
-            else if (y$strand=="-")
-                return(rev(y$coverage))
-            else
-                return(y$coverage)
-        },
-        error=function(e) {
-            message("Caught invalid genomic area!")
-            print(mask[i])
-            message("Will return zero coverage")
-            return(NULL)
-        },finally={})
-    }
-    else
-        return(NULL)
-}
-
-profileMatrix <- function(input,region,binParams,rc=NULL) {
-    if (!is.null(input[[1]]$coverage$center)) {
-        for (n in names(input)) {
-            message("Calculating ",region," profile for ",input[[n]]$name)
-            message(" center")
-            center <- binCoverageMatrix(input[[n]]$coverage$center,
-                binSize=binParams$regionBinSize,stat=binParams$sumStat,
-                interpolation=binParams$interpolation,rc=rc)
-            if (binParams$flankBinSize!=0) {
-                message(" upstream")
-                left <- binCoverageMatrix(input[[n]]$coverage$upstream,
-                    binSize=binParams$flankBinSize,stat=binParams$sumStat,
-                    interpolation=binParams$interpolation,rc=rc)
-                message(" downstream")
-                right <- binCoverageMatrix(input[[n]]$coverage$downstream,
-                    binSize=binParams$flankBinSize,stat=binParams$sumStat,
-                    interpolation=binParams$interpolation,rc=rc)
-            }
-            else {
-                message(" upstream")
-                left <- baseCoverageMatrix(input[[n]]$coverage$upstream,rc=rc)
-                message(" downstream")
-                right <- baseCoverageMatrix(input[[n]]$coverage$downstream,
-                    rc=rc)
-            }
-            input[[n]]$profile <- cbind(left,center,right)
-        }
-    }
-    else {
-        for (n in names(input)) {
-            message("Calculating ",region," profile for ",input[[n]]$name)
-            if (binParams$regionBinSize!=0)
-                input[[n]]$profile <- 
-                    binCoverageMatrix(input[[n]]$coverage,
-                        binSize=binParams$regionBinSize,stat=binParams$sumStat,
-                            rc=rc)
-            else
-                input[[n]]$profile <- 
-                    baseCoverageMatrix(input[[n]]$coverage,rc=rc)
-        }
-    }
-    return(input)
-}
-
-baseCoverageMatrix <- function(cvrg,rc=NULL) {
-    size <- length(cvrg[[1]])
-    if (size==0) {
-        for (i in 2:length(cvrg)) {
-            if (!is.null(cvrg[[i]])) {
-                size <- length(cvrg[[i]])
-                break
-            }
-        }
-    }
-    tmp <- cmclapply(cvrg,function(x) {
-        if (class(x)=="Rle")
-            return(as.numeric(x))
-    },rc=rc)
-    null <- which(sapply(tmp,is.null))
-    if (length(null)>0) {
-        for (j in null) {
-            fill <- rep(0,size)
-            tmp[[j]] <- fill
-        }
-    }
-    return(do.call("rbind",tmp))
-}
-
-binCoverageMatrix <- function(cvrg,binSize=1000,stat=c("mean","median"),
-    interpolation=c("auto","spline","linear","neighborhood"),rc=NULL) {
-    stat <- stat[1]
-    interpolation=interpolation[1]
-    tmp <- cmclapply(cvrg,function(x) {
-        if (class(x)=="Rle")
-            return(as.numeric(x))
-    },rc=rc)
-    null <- which(sapply(tmp,is.null))
-    if (length(null)>0) {
-        for (j in null) {
-            fill <- rep(0,binSize)
-            tmp[[j]] <- fill
-        }
-    }
-    tmp <- cmclapply(tmp,function(x) splitVector(x,binSize,interpolation),rc=rc)
-    ############################################################################
-    # Good try but took too much time...
-    #tmp <- cmclapply(cvrg,function(x) {
-    #    if (is.null(x))
-    #         x <- Rle(rep(0,binSize))
-    #    splitVector(x,binSize,interpolation)
-    #},rc=rc)
-    ############################################################################
-    if (stat=="mean") {
-        statMatrix <- do.call("rbind",cmclapply(tmp,function(x) 
-            unlist(lapply(x,function(y) mean(y))),rc=rc))
-    }
-    else if (stat=="median") {
-        statMatrix <- do.call("rbind",cmclapply(tmp,function(x) 
-            unlist(lapply(x,function(y) median(y))),rc=rc))
-    }
-    return(statMatrix)
 }
 
 applySelectors <- function(ranges,selector,rc=NULL) {
@@ -1003,78 +763,25 @@ applySelectors <- function(ranges,selector,rc=NULL) {
     return(ranges)
 }
 
-toOutput <- function(input,design=NULL,saveParams,plotParams=NULL,
-    plotObjs=NULL) {
-    if (!saveParams$ranges) {
-        for (i in 1:length(input))
-            input[[i]]$ranges <- NULL
-    }
-    if (!saveParams$coverage) {
-        for (i in 1:length(input))
-            input[[i]]$coverage <- NULL
-    }
-    if (!saveParams$profile) {
-        for (i in 1:length(input))
-            input[[i]]$profile <- NULL
-    }
-    plots <- list()
+toOutput <- function(input,design=NULL,saveParams,plotObjs=NULL,
+    callParams=NULL) {
+    if (!saveParams$ranges)
+        input <- removeData(input,"ranges")
+    if (!saveParams$coverage)
+        input <- removeData(input,"coverage")
+    if (!saveParams$profile)
+        input <- removeData(input,"profile")
+    plots <- list(profile=NULL,heatmap=NULL,correlation=NULL)
     if (!is.null(plotObjs) && saveParams$profilePlot)
         plots$profile <- plotObjs$profilePlot
     if (!is.null(plotObjs) && saveParams$heatmapPlot)
         plots$heatmap <- plotObjs$heatmapPlot
+    if (!is.null(plotObjs) && saveParams$correlationPlot)
+        plots$correlation <- plotObjs$correlationPlot
     return(list(
         data=input,
         design=design,
-        plotopts=plotParams,
-        plots=plots
+        plots=plots,
+        callopts=callParams
     ))
 }
-
-#applySelectors <- function(ranges,selector,rc=NULL) {
-#    if (!is.null(selector$id)) {
-#        ranges <- ranges[selector$ids]
-#        if (length(ranges)==0)
-#            stop("No ranges left after using the identifiers provided with ",
-#                "the selector field. Are you sure the identifiers between the ",
-#                "two files are compatible?")
-#    }
-#    if (!is.null(selector$biotype)) {
-#        if (is(ranges,"GRanges") && !is.null(ranges$biotype)) {
-#            good <- which(ranges$biotype %in% selector$biotype)
-#        }
-#        else if (is(ranges,"GRangesList") && !is.null(ranges[[1]]$biotype)) {
-#            bts <- unlist(lapply(ranges,function(x) {
-#                return(x[1]$biotype)
-#            }))
-#            good <- which(unlist(cmclapply(ranges,function(x) {
-#                if (x[1]$biotype %in% type)
-#                    return(FALSE)
-#                else
-#                    return(TRUE)
-#            },selector$biotype,rc=rc)))
-#        }
-#        ranges <- ranges[good]
-#        if (length(ranges)==0)
-#            stop("No ranges left after using the biotypes provided with the ",
-#                "selector field. Are you sure the identifiers between the two ",
-#                "files are compatible?")
-#    }
-#    if (!is.null(selector$exonType) && !is.null(ranges$exon_type)) {
-#        if (is(ranges,"GRanges"))
-#            good <- which(ranges$exonType %in% selector$exonType)
-#        else if (is(ranges,"GRangesList")) {
-#            good <- which(unlist(cmclapply(ranges,function(x) {
-#                if (x[1]$exon_type %in% type)
-#                    return(FALSE)
-#                else
-#                    return(TRUE)
-#            },selector$exonType)))
-#        }
-#        ranges <- ranges[good]
-#        if (length(ranges)==0)
-#            stop("No ranges left after using the exon types provided with ",
-#                "the selector field. Are you sure the identifiers between the ",
-#                "two files are compatible?")
-#    }
-#    return(ranges)
-#}

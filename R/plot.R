@@ -1,43 +1,105 @@
-recoupPlot <- function(recoupObj,plotParams=list(plot=FALSE,profile=TRUE,
-    heatmap=TRUE,device="x11"),mainh=1) {
-    if (!is.null(plotParams$profile)) {
-        theProfile <- recoupObj$plots$profile
-        if (plotParams$device=="x11") {
-            dev.new()
-            plot(theProfile)
+recoupPlot <- function(recoupObj,what=c("profile","heatmap","correlation"),
+    device=c("x11","png","jpg","tiff","bmp","pdf","ps"),outputDir=".",
+    outputBase=paste(sapply(recoupObj,function(x) return(x$data$id)),sep="_"),
+    mainh=1) {
+    what <- tolower(what)
+    device <- tolower(device[1])
+    checkTextArgs("what",what,c("profile","heatmap","correlation"),
+        multiarg=TRUE)
+    checkTextArgs("device",device,c("x11","png","jpg","tiff","bmp","pdf","ps"))
+    
+    if ("profile" %in% what) {
+        if (!is.null(recoupObj$plots$profile)) {
+            theProfile <- recoupObj$plots$profile
+            if (device=="x11") {
+                dev.new()
+                plot(theProfile)
+            }
+            else {
+                # !!!
+                devv <- device
+                ggsave(filename=paste(outputBase,"_profile.",devv,sep=""),
+                    plot=theProfile,path=outputDir)
+            }
         }
         else
-            ggsave(filename=paste(plotParams$outputBase,"_profile.",
-                plotParams$device,sep=""),plot=theProfile,
-                path=plotParams$outputDir)
+            message("Profile to plot not found! Are you sure you called ",
+                "recoupProfile first?")
     }
-    
-    if (!is.null(plotParams$heatmap)) {
-        theHeatmap <- recoupObj$plots$heatmap
-        if (plotParams$device=="x11") {
-            dev.new()
-            draw(theHeatmap,gap=grid::unit(1,"cm"),main_heatmap=mainh)
+    if ("heatmap" %in% what) {
+        if (!is.null(recoupObj$plots$heatmap)) {
+            theHeatmap <- recoupObj$plots$heatmap
+            if (device=="x11") {
+                dev.new()
+                draw(theHeatmap,gap=grid::unit(1,"cm"),main_heatmap=mainh)
+            }
+            else {
+                # Starting from width=4, we add 2 inches for each heatmap
+                iw <- 4 + (length(input)-1)*2
+                if (device == "pdf")
+                    graphicsOpen(device,paste(outputBase,"_heatmap.",device,sep=""),
+                        width=iw)
+                else
+                    graphicsOpen(device,paste(outputBase,"_heatmap.",device,sep=""),
+                        width=iw,units="in")
+                draw(theHeatmap,gap=grid::unit(1,"cm"),main_heatmap=mainh)
+                graphicsClose(device)
+            }
         }
-        else {
-            # Starting from width=4, we add 1.5 inches for each heatmap
-            iw <- 4 + (length(input)-1)*1.5
-            if (plotParams$device == "pdf")
-                graphicsOpen(plotParams$device,paste(plotParams$outputBase,
-                    "_heatmap.",plotParams$device,sep=""),width=iw)
-            else
-                graphicsOpen(plotParams$device,paste(plotParams$outputBase,
-                    "_heatmap.",plotParams$device,sep=""),width=iw,units="in")
-            draw(theHeatmap,gap=grid::unit(1,"cm"),main_heatmap=mainh)
-            graphicsClose(plotParams$device)
+        else
+            message("Heatmap to plot not found! Are you sure you called ",
+                "recoupHeatmap first?")
+    }
+    if ("correlation" %in% what) {
+        if (!is.null(recoupObj$plots$correlation)) {
+            theCorrelation <- recoupObj$plots$correlation
+            if (device=="x11") {
+                dev.new()
+                plot(theCorrelation)
+            }
+            else {
+                # !!!
+                devv <- device
+                ggsave(filename=paste(outputBase,"_correlation.",devv,sep=""),
+                    plot=theCorrelation,path=outputDir)
+            }
         }
+        else
+            message("Correlation to plot not found! Are you sure you called ",
+                "recoupCorrelation first?")
     }
 }
 
-recoupProfile <- function(recoupObj,rc=NULL) {
+recoupProfile <- function(recoupObj,samples=NULL,rc=NULL) {
     # Retrieve data
     input <- recoupObj$data
     design <- recoupObj$design
-    opts <- recoupObj$plotopts
+    #opts <- recoupObj$plotopts
+    
+    # Attach some config options for profile and heatmap. irrespectively of 
+    # subsequent plotting
+    ggplotParams <- recoupObj$callopts$ggplotParams
+    lineSize <- ifelse(
+        recoupObj$callopts$plotParams$device %in% c("x11","png","jpg","bmp"),
+        0.7,0.6
+    )
+    ggplotParams$lineSize <- lineSize
+    ggplotParams$singleFacet <- recoupObj$callopts$plotParams$singleFacet
+    ggplotParams$multiFacet <- recoupObj$callopts$plotParams$multiFacet
+    opts <- list(
+        xAxisParams=list(
+            region=recoupObj$callopts$region,
+            flank=recoupObj$callopts$flank,
+            customIsBase=recoupObj$callopts$customIsBase
+        ),
+        yAxisParams=list(
+            signalScale=recoupObj$callopts$plotParams$signalScale,
+            heatmapScale=recoupObj$callopts$plotParams$heatmapScale,
+            heatmapFactor=recoupObj$callopts$plotParams$heatmapFactor
+        ),
+        binParams=recoupObj$callopts$binParams,
+        ggplotParams=ggplotParams
+    )
     
     if (is.null(input[[1]]$profile))
         stop("Profile matrix not found in the input object! Are you sure you ",
@@ -55,6 +117,19 @@ recoupProfile <- function(recoupObj,rc=NULL) {
     breaks <- lb$breaks
     labels <- lb$labels
     
+    # Filter the profiles here
+    if (!is.null(samples)) {
+        if (is.numeric(samples))
+            ta <- 1:length(input)
+        else 
+            ta <- names(input)
+        if (!all(samples %in% ta) || length(samples)==0)
+            warning("Wrong indexing for profile plot subsetting! ",
+                "Ignoring",immediate.=TRUE)
+        else
+            input <- input[samples]
+    }
+    
     profileColors <- unlist(sapply(input,function(x) return(x$color)))
     if (!is.null(profileColors))
         names(profileColors) <- unlist(sapply(input,function(x) return(x$name)))
@@ -63,7 +138,7 @@ recoupProfile <- function(recoupObj,rc=NULL) {
     
     if (is.null(design)) {
         # Create ggplot data
-        profiles <- calcPlotProfiles(input,opts,rc)
+        profiles <- calcPlotProfiles(input,opts,2,rc)
         index <- 1:length(profiles[[1]][[1]])
         names <- sapply(input,function(x) return(x$name))
         position <- rep(index,length(input))
@@ -85,7 +160,7 @@ recoupProfile <- function(recoupObj,rc=NULL) {
         ggplot.plot <-
             ggplot(ggplot.data,mapping=aes(x=Position,y=Signal,
                 colour=Condition)) + 
-            geom_line(size=1) +
+            geom_line(size=ggParams$lineSize) +
             geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax,colour=Condition,
                 fill=Condition),alpha=0.3,size=0) +
             theme_bw() +
@@ -115,7 +190,7 @@ recoupProfile <- function(recoupObj,rc=NULL) {
             return(out)
         },design)
         subProfiles <- lapply(subcovmat,function(x,opts,rc) {
-            return(calcDesignPlotProfiles(x,opts,rc))
+            return(calcDesignPlotProfiles(x,opts,2,rc))
         },opts,rc)
         
         designProfiles <- lapply(subProfiles,function(x) {
@@ -180,7 +255,7 @@ recoupProfile <- function(recoupObj,rc=NULL) {
             ggplot.plot <-
                 ggplot(ggplot.data,mapping=aes(x=Position,y=Signal,
                     colour=Condition)) + 
-                geom_line(size=1) +
+                geom_line(size=ggParams$lineSize) +
                 geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax,
                     colour=Condition,fill=Condition),alpha=0.3,size=0) +
                 theme_bw() +
@@ -199,11 +274,15 @@ recoupProfile <- function(recoupObj,rc=NULL) {
 
             if (!is.null(profileColors))
                 ggplot.plot <- ggplot.plot + 
-                scale_fill_manual(values=profileColors) +
-                scale_color_manual(values=profileColors)
+                    scale_fill_manual(values=profileColors) +
+                    scale_color_manual(values=profileColors)
             
-            if (ncol(design)==1)
-                ggplot.plot <- ggplot.plot + facet_grid(fac1~.)
+            if (ncol(design)==1) {
+                if (ggParams$multiFacet=="wrap")
+                    ggplot.plot <- ggplot.plot + facet_wrap(~ fac1)
+                else if (ggParams$multiFacet=="grid")
+                    ggplot.plot <- ggplot.plot + facet_grid(fac1~.)
+            }
             if (ncol(design)==2)
                 ggplot.plot <- ggplot.plot + facet_grid(fac1~fac2)
         }
@@ -211,6 +290,7 @@ recoupProfile <- function(recoupObj,rc=NULL) {
             ggplot.data <- data.frame(
                 Position=position,
                 Signal=signal,
+                Condition=condition,
                 ymin=ymin,
                 ymax=ymax
             )
@@ -234,12 +314,19 @@ recoupProfile <- function(recoupObj,rc=NULL) {
                     levels=unique(as.character(faceter[,3])))
             }
             
-            ggplot.plot <-
-                ggplot(ggplot.data,mapping=aes(x=Position,y=Signal,
-                    colour=Design)) + 
-                geom_line(size=1) +
-                geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax,
-                    colour=Design,fill=Design),alpha=0.3,size=0) +
+            if (ggParams$singleFacet=="none")
+                ggplot.plot <- ggplot(ggplot.data,mapping=aes(x=Position,
+                    y=Signal,colour=Design)) +
+                    geom_line(size=ggParams$lineSize) +
+                    geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax,
+                        colour=Design,fill=Design),alpha=0.3,size=0)
+            else
+                ggplot.plot <- ggplot(ggplot.data,mapping=aes(x=Position,
+                    y=Signal,colour=Condition)) +
+                    geom_line(size=ggParams$lineSize) +
+                    geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax),
+                        alpha=0.3,size=0)
+            ggplot.plot <- ggplot.plot +
                 theme_bw() +
                 xlab("\nPosition in bp") +
                 ylab("Average signal\n") +
@@ -253,20 +340,54 @@ recoupProfile <- function(recoupObj,rc=NULL) {
                     legend.position=ggParams$legend.position,
                     panel.margin=ggParams$panel.margin) +
                 scale_x_continuous(breaks=breaks,labels=labels)
-
-            if (ncol(design)==2)
-                ggplot.plot <- ggplot.plot + facet_grid(fac2~.)
+            
+             if (!is.null(profileColors) && ggParams$singleFacet!="none") 
+                ggplot.plot <- ggplot.plot + 
+                    scale_fill_manual(values=profileColors) +
+                    scale_color_manual(values=profileColors)
+            
+            if (ncol(design)==1) {
+                if (ggParams$singleFacet=="wrap")
+                    ggplot.plot <- ggplot.plot + facet_wrap(~ Design)
+                else if (ggParams$singleFacet=="grid")
+                    ggplot.plot <- ggplot.plot + facet_grid(Design~.)
+            }
+            if (ncol(design)==2) {
+                if (ggParams$multiFacet=="wrap")
+                    ggplot.plot <- ggplot.plot + facet_wrap(~ fac2)
+                else if (ggParams$multiFacet=="grid")
+                    ggplot.plot <- ggplot.plot + facet_grid(fac2~.)
+            }
             if (ncol(design)==3)
                 ggplot.plot <- ggplot.plot + facet_grid(fac2~fac3)
         }
    }
-   return(ggplot.plot)
+   #return(ggplot.plot)
+   recoupObj <- setr(recoupObj,"profile",ggplot.plot)
 }
 
-recoupHeatmap <- function(recoupObj,rc=NULL) {
+recoupHeatmap <- function(recoupObj,samples=NULL,rc=NULL) {
     input <- recoupObj$data
     design <- recoupObj$design
-    opts <- recoupObj$plotopts
+    #opts <- recoupObj$plotopts
+    
+    # Attach some config options for profile and heatmap, irrespectively of 
+    # subsequent plotting
+    opts <- list(
+        xAxisParams=list(
+            region=recoupObj$callopts$region,
+            flank=recoupObj$callopts$flank,
+            customIsBase=recoupObj$callopts$customIsBase
+        ),
+        yAxisParams=list(
+            signalScale=recoupObj$callopts$plotParams$signalScale,
+            heatmapScale=recoupObj$callopts$plotParams$heatmapScale,
+            heatmapFactor=recoupObj$callopts$plotParams$heatmapFactor
+        ),
+        binParams=recoupObj$callopts$binParams,
+        orderBy=recoupObj$callopts$orderBy,
+        complexHeatmapParams=recoupObj$callopts$complexHeatmapParams
+    )
     
     if (is.null(input[[1]]$profile))
         stop("Profile matrix not found in the input object! Are you sure you ",
@@ -275,10 +396,47 @@ recoupHeatmap <- function(recoupObj,rc=NULL) {
             "returned by recoup having changed the default saveParams ",
             "parameter")
     
+    # Check compatibility of orderBy argument and ComplexHeatmap parameters
+    # Hierarchical clustering asked in orderBy but otherwise in the heatmap
+    # parameters. Clustering is performed.
+    if (length(grep("hc",opts$orderBy$what))>0
+        && !(opts$complexHeatmapParams$main$cluster_rows 
+        || opts$complexHeatmapParams$group$cluster_rows)) {
+        warning("Hierarchical clustering asked in the orderBy parameter but ",
+            "is set to\nFALSE in complexHeatmapParams! Will auto-correct to ",
+            "perform hierarchical\nclustering ordering...",immediate.=TRUE)
+        opts$complexHeatmapParams$main$cluster_rows <- TRUE
+        opts$complexHeatmapParams$group$cluster_rows <- TRUE
+    }
+    # Hierarchical clustering asked in heatmap parameters but not in the 
+    # orderBy directives. Clustering is not performed.
+    if ((opts$complexHeatmapParams$main$cluster_rows 
+        || opts$complexHeatmapParams$group$cluster_rows)
+        && length(grep("hc",opts$orderBy$what))==0) {
+        warning("Hierarchical clustering asked in the complexHeatmapParams ",
+            "parameter but\nnot in orderBy parameter! Hierarchical clustering ",
+            "in the heatmap\nprofile will be turned off",immediate.=TRUE)
+        opts$complexHeatmapParams$main$cluster_rows <- FALSE
+        opts$complexHeatmapParams$group$cluster_rows <- FALSE
+    }
+    
     width <- ncol(input[[1]]$profile)
     labCol <- rep("",width)
     lb <- makeHorizontalAnnotation(width,opts,"heatmap")
     labCol[round(lb$breaks)] <- lb$labels
+    
+    # Filter the profiles here
+    if (!is.null(samples)) {
+        if (is.numeric(samples))
+            ta <- 1:length(input)
+        else 
+            ta <- names(input)
+        if (!all(samples %in% ta) || length(samples)==0)
+            warning("Wrong indexing for profile plot subsetting! ",
+                "Ignoring",immediate.=TRUE)
+        else
+            input <- input[samples]
+    }
     
     if (opts$yAxisParams$signalScale=="log2") {
         for (n in names(input)) {
@@ -350,6 +508,7 @@ recoupHeatmap <- function(recoupObj,rc=NULL) {
         hParams <- opts$complexHeatmapParams$main
         hmList <- NULL
         for (n in names(input)) {
+            input[[n]]$profile <- as.matrix(input[[n]]$profile)
             colnames(input[[n]]$profile) <- labCol
             hmList <- hmList + 
                 Heatmap(
@@ -372,6 +531,7 @@ recoupHeatmap <- function(recoupObj,rc=NULL) {
         hParams <- opts$complexHeatmapParams$group
         hmList <- NULL
         for (n in names(input)) {
+            input[[n]]$profile <- as.matrix(input[[n]]$profile)
             colnames(input[[n]]$profile) <- labCol
             hmList <- hmList + 
                 Heatmap(
@@ -393,10 +553,331 @@ recoupHeatmap <- function(recoupObj,rc=NULL) {
                 )
        }
    }
-   return(hmList)
+   #return(hmList)
+   recoupObj <- setr(recoupObj,"heatmap",hmList)
 }
 
-calcPlotProfiles <- function(input,opts,rc) {
+recoupCorrelation <- function(recoupObj,samples=NULL,rc=NULL) {
+    # Retrieve data
+    input <- recoupObj$data
+    design <- recoupObj$design
+    
+    # Attach some config options for profile and heatmap. irrespectively of 
+    # subsequent plotting
+    ggplotParams <- recoupObj$callopts$ggplotParams
+    lineSize <- ifelse(
+        recoupObj$callopts$plotParams$device %in% c("x11","png","jpg","bmp"),
+        0.7,0.6
+    )
+    ggplotParams$lineSize <- lineSize
+    ggplotParams$singleFacet <- recoupObj$callopts$plotParams$singleFacet
+    ggplotParams$multiFacet <- recoupObj$callopts$plotParams$multiFacet
+    opts <- list(
+        yAxisParams=list(
+            signalScale=recoupObj$callopts$plotParams$signalScale,
+            conf=recoupObj$callopts$plotParams$conf
+        ),
+        orderBy=recoupObj$callopts$orderBy,
+        binParams=recoupObj$callopts$binParams,
+        ggplotParams=ggplotParams
+    )
+    
+    if (is.null(input[[1]]$profile))
+        stop("Profile matrix not found in the input object! Are you sure you ",
+            "saved it while running the main recoup function? This may occur ",
+            "when using recoupProfile and/or recoupHeatmap on an object ",
+            "returned by recoup having changed the default saveParams ",
+            "parameter")
+    
+    if (!requireNamespace("grid"))
+        stop("R package grid is required to create average profile plots!")
+    
+    # Filter the profiles here
+    if (!is.null(samples)) {
+        if (is.numeric(samples))
+            ta <- 1:length(input)
+        else 
+            ta <- names(input)
+        if (!all(samples %in% ta) || length(samples)==0)
+            warning("Wrong indexing for profile plot subsetting! ",
+                "Ignoring",immediate.=TRUE)
+        else
+            input <- input[samples]
+    }
+    
+    profileColors <- unlist(sapply(input,function(x) return(x$color)))
+    if (!is.null(profileColors))
+        names(profileColors) <- unlist(sapply(input,function(x) return(x$name)))
+    
+    ggParams <- opts$ggplotParams
+    
+    if (is.null(design)) {
+        # Create ggplot data
+        profiles <- calcPlotProfiles(input,opts,1,rc)
+        sorter <- orderSignals(profiles,opts)
+        index <- 1:length(profiles[[1]][[1]])
+        names <- sapply(input,function(x) return(x$name))
+        position <- rep(index,length(input))
+        signal <- unlist(lapply(profiles,function(x,s) {
+            return(lowess(x$profile[s],f=0.1)$y)
+            #return(smooth.spline(x$profile[s])$y)
+        },sorter$ix))
+        ymin <- unlist(lapply(profiles,function(x,s) {
+            return(lowess(x$lower[s],f=0.1)$y)
+            #return(smooth.spline(x$lower[s])$y)
+        },sorter$ix))
+        ymax <- unlist(lapply(profiles,function(x,s) {
+            return(lowess(x$upper[s],f=0.1)$y)
+            #return(smooth.spline(x$upper[s])$y)
+        },sorter$ix))
+        condition <- rep(names,each=length(index))
+        
+        # Create ggplot data frame
+        ggplot.data <- data.frame(
+            Index=position,
+            Coverage=signal,
+            Condition=factor(condition,levels=unique(condition)),
+            ymin=ymin,
+            ymax=ymax
+        )
+        
+        # Create ggplot plot
+        ggplot.plot <-
+            ggplot(ggplot.data,mapping=aes(x=Index,y=Coverage,
+                colour=Condition)) + 
+            geom_line(size=ggParams$lineSize)
+       
+        if (opts$yAxisParams$conf)
+            ggplot.plot <- ggplot.plot +
+                geom_ribbon(aes(x=Index,ymin=ymin,ymax=ymax,colour=Condition,
+                    fill=Condition),alpha=0.3,size=0)
+        
+        ggplot.plot <- ggplot.plot +
+            theme_bw() +
+            xlab("\nIndex") +
+            ylab("Average coverage\n") +
+            theme(title=ggParams$title,
+                axis.title.x=ggParams$axis.title.x,
+                axis.title.y=ggParams$axis.title.y,
+                axis.text.x=ggParams$axis.text.x,
+                axis.text.y=ggParams$axis.text.y,
+                legend.position=ggParams$legend.position)
+                
+        if (!is.null(profileColors))
+            ggplot.plot <- ggplot.plot + 
+                scale_fill_manual(values=profileColors) +
+                scale_color_manual(values=profileColors)
+    }
+    else {
+        message("Using provided design to facet the coverage profiles")
+        subcovmat <- lapply(input,function(x,d) {
+            splitter <- split(rownames(x$profile),as.list(d),sep="|",drop=TRUE)
+            out <- vector("list",length(splitter))
+            names(out) <- names(splitter)
+            for (n in names(splitter))
+                out[[n]] <- x$profile[splitter[[n]],,drop=FALSE]
+            return(out)
+        },design)
+        subProfiles <- lapply(subcovmat,function(x,opts,rc) {
+            return(calcDesignPlotProfiles(x,opts,1,rc))
+        },opts,rc)
+        
+        designProfiles <- lapply(subProfiles,function(x) {
+            d <- names(x) # Should be the "|" separated factor names
+            dsplit <- strsplit(d,split="|",fixed=TRUE)
+            # Replication factors
+            pop <- sapply(x,function(x) return(length(x$profile)))
+            tmp <- vector("list",length(x))
+            for (i in 1:length(dsplit)) {
+                if (length(dsplit[[i]])>1)
+                    tmp[[i]] <- t(replicate(pop[i],dsplit[[i]]))
+                else
+                    tmp[[i]] <- as.matrix(rep(dsplit[[i]],pop[i]))
+            }
+            o <- list()
+            o$profile <- unlist(lapply(x,function(y) {
+                return(y$profile)
+            }),use.names=FALSE)
+            o$upper <- unlist(lapply(x,function(y) {
+                return(y$upper)
+            }),use.names=FALSE)
+            o$lower <- unlist(lapply(x,function(y) {
+                return(y$lower)
+            }),use.names=FALSE)
+            o$design <- do.call("rbind",tmp)
+            return(o)
+        })
+        
+        sorter <- orderDesignSignals(designProfiles,design,opts)
+        names <- sapply(input,function(x) return(x$name))
+        faceter <- do.call("rbind",lapply(designProfiles,function(x) 
+                return(x$design)))
+        position <- unlist(lapply(subProfiles,function(x) {
+            return(unlist(lapply(x,function(y) return(1:length(y$profile)))))
+        }))
+        condition <- rep(names,sapply(designProfiles,function(x) {
+            return(length(x$profile))
+        }))
+        signal <- unlist(lapply(designProfiles,function(x,s)
+            #return(lowess(x$profile[s],f=0.05)$y),sorter),
+            return(smooth.spline(x$profile[s],spar=0.5)$y),sorter),
+        use.names=FALSE)
+        ymin <- unlist(lapply(designProfiles,function(x,s) 
+            #return(lowess(x$lower[s],f=0.05)$y),sorter),
+            return(smooth.spline(x$lower[s],spar=0.5)$y),sorter),
+        use.names=FALSE)
+        ymax <- unlist(lapply(designProfiles,function(x,s) 
+            #return(lowess(x$upper[s],f=0.05)$y),sorter),
+            return(smooth.spline(x$upper[s],spar=0.5)$y),sorter),
+        use.names=FALSE)
+            
+        if (length(input)>1) { # Case where two factors max
+            ggplot.data <- data.frame(
+                Index=position,
+                Coverage=signal,
+                Condition=factor(condition,levels=unique(condition)),
+                ymin=ymin,
+                ymax=ymax
+            )
+            
+            if (ncol(design)==1)
+                ggplot.data$fac1 <- factor(as.character(faceter[,1]),
+                    levels=unique(as.character(faceter[,1])))
+            if (ncol(design)==2) {
+                ggplot.data$fac1 <- factor(as.character(faceter[,1]),
+                    levels=unique(as.character(faceter[,1])))
+                ggplot.data$fac2 <- factor(as.character(faceter[,2]),
+                    levels=unique(as.character(faceter[,2])))
+            }
+            
+            ggplot.plot <-
+                ggplot(ggplot.data,mapping=aes(x=Index,y=Coverage,
+                    colour=Condition)) + 
+                geom_line(size=ggParams$lineSize)
+            
+            if (opts$yAxisParams$conf)
+                ggplot.plot <- ggplot.plot +
+                    geom_ribbon(aes(x=Index,ymin=ymin,ymax=ymax,
+                        colour=Condition,fill=Condition),alpha=0.3,size=0)
+                        
+            ggplot.plot <- ggplot.plot +
+                theme_bw() +
+                xlab("\nIndex") +
+                ylab("Average coverage\n") +
+                theme(title=ggParams$title,
+                    axis.title.x=ggParams$axis.title.x,
+                    axis.title.y=ggParams$axis.title.y,
+                    axis.text.x=ggParams$axis.text.x,
+                    axis.text.y=ggParams$axis.text.y,
+                    strip.text.x=ggParams$strip.text.x,
+                    strip.text.y=ggParams$strip.text.y,
+                    legend.position=ggParams$legend.position,
+                    panel.margin=ggParams$panel.margin)
+
+            if (!is.null(profileColors))
+                ggplot.plot <- ggplot.plot + 
+                    scale_fill_manual(values=profileColors) +
+                    scale_color_manual(values=profileColors)
+            
+            if (ncol(design)==1) {
+                if (ggParams$multiFacet=="wrap")
+                    ggplot.plot <- ggplot.plot + facet_wrap(~ fac1,
+                        scales="free_x")
+                else if (ggParams$multiFacet=="grid")
+                    ggplot.plot <- ggplot.plot + facet_grid(fac1~.,
+                        scales="free_x")
+            }
+            if (ncol(design)==2)
+                ggplot.plot <- ggplot.plot + facet_grid(fac1~fac2,
+                        scales="free_x")
+        }
+        else {
+            ggplot.data <- data.frame(
+                Index=position,
+                Coverage=signal,
+                Condition=condition,
+                ymin=ymin,
+                ymax=ymax
+            )
+            
+            if (ncol(design)==1) {
+                ggplot.data$Design <- factor(as.character(faceter[,1]),
+                    levels=unique(as.character(faceter[,1])))
+            }
+            if (ncol(design)==2) {
+                ggplot.data$Design <- factor(as.character(faceter[,1]),
+                    levels=unique(as.character(faceter[,1])))
+                ggplot.data$fac2 <- factor(as.character(faceter[,2]),
+                    levels=unique(as.character(faceter[,2])))
+            }
+            if (ncol(design)==3) {
+                ggplot.data$Design <- factor(as.character(faceter[,1]),
+                    levels=unique(as.character(faceter[,1])))
+                ggplot.data$fac2 <- factor(as.character(faceter[,2]),
+                    levels=unique(as.character(faceter[,2])))
+                ggplot.data$fac3 <- factor(as.character(faceter[,3]),
+                    levels=unique(as.character(faceter[,3])))
+            }
+            
+            if (ggParams$singleFacet=="none") {
+                ggplot.plot <- ggplot(ggplot.data,mapping=aes(x=Index,
+                    y=Coverage,colour=Design)) +
+                    geom_line(size=ggParams$lineSize)
+                if (opts$yAxisParams$conf)
+                    ggplot.plot <- ggplot.plot +
+                        geom_ribbon(aes(x=Index,ymin=ymin,ymax=ymax,
+                            colour=Design,fill=Design),alpha=0.3,size=0)
+            }
+            else {
+                ggplot.plot <- ggplot(ggplot.data,mapping=aes(x=Index,
+                    y=Coverage,colour=Condition)) +
+                    geom_line(size=ggParams$lineSize)
+                if (opts$yAxisParams$conf)
+                    ggplot.plot <- ggplot.plot +
+                        geom_ribbon(aes(x=Index,ymin=ymin,ymax=ymax),
+                            alpha=0.3,size=0)
+            }
+            ggplot.plot <- ggplot.plot +
+                theme_bw() +
+                xlab("\nIndex") +
+                ylab("Average coverage\n") +
+                theme(title=ggParams$title,
+                    axis.title.x=ggParams$axis.title.x,
+                    axis.title.y=ggParams$axis.title.y,
+                    axis.text.x=ggParams$axis.text.x,
+                    axis.text.y=ggParams$axis.text.y,
+                    strip.text.x=ggParams$strip.text.x,
+                    strip.text.y=ggParams$strip.text.y,
+                    legend.position=ggParams$legend.position,
+                    panel.margin=ggParams$panel.margin)
+            
+             if (!is.null(profileColors) && ggParams$singleFacet!="none") 
+                ggplot.plot <- ggplot.plot + 
+                    scale_fill_manual(values=profileColors) +
+                    scale_color_manual(values=profileColors)
+            
+            if (ncol(design)==1) {
+                if (ggParams$singleFacet=="wrap")
+                    ggplot.plot <- ggplot.plot + facet_wrap(~ Design)
+                else if (ggParams$singleFacet=="grid")
+                    ggplot.plot <- ggplot.plot + facet_grid(Design~.)
+            }
+            if (ncol(design)==2) {
+                if (ggParams$multiFacet=="wrap")
+                    ggplot.plot <- ggplot.plot + facet_wrap(~ fac2)
+                else if (ggParams$multiFacet=="grid")
+                    ggplot.plot <- ggplot.plot + facet_grid(fac2~.)
+            }
+            if (ncol(design)==3)
+                ggplot.plot <- ggplot.plot + facet_grid(fac2~fac3)
+        }
+   }
+   #return(ggplot.plot)
+   recoupObj <- setr(recoupObj,"correlation",ggplot.plot)
+}
+
+calcPlotProfiles <- function(input,opts,sdim=c(2,1),rc) {
+    sdim <- sdim[1]
     if (opts$binParams$smooth)
         profiles <- cmclapply(input,function(x,avgfun,scale) {
             if (scale=="log2") {
@@ -404,7 +885,7 @@ calcPlotProfiles <- function(input,opts,rc) {
                 x$profile <- log2(x$profile)
             }
             o <- list()
-            fit <- smooth.spline(apply(x$profile,2,avgfun))
+            fit <- smooth.spline(apply(x$profile,sdim,avgfun))
             ci <- ssCI(fit)
             o$profile <- fit$y
             o$upper <- ci$upper
@@ -418,7 +899,7 @@ calcPlotProfiles <- function(input,opts,rc) {
                 x$profile <- log2(x$profile)
             }
             o <- list()
-            o$profile <- apply(x$profile,2,avgfun)
+            o$profile <- apply(x$profile,sdim,avgfun)
             varfun <- ifelse(avgfun=="mean","sd","mad")
             va <- apply(x,2,varfun)
             o$upper <- o$profile + va
@@ -428,7 +909,8 @@ calcPlotProfiles <- function(input,opts,rc) {
     return(profiles)
 }
 
-calcDesignPlotProfiles <- function(covmat,opts,rc) {
+calcDesignPlotProfiles <- function(covmat,opts,sdim=c(2,1),rc) {
+    sdim <- sdim[1]
     if (opts$binParams$smooth)
         profiles <- cmclapply(covmat,function(x,avgfun,scale) {
             if (scale=="log2") {
@@ -436,7 +918,7 @@ calcDesignPlotProfiles <- function(covmat,opts,rc) {
                 x <- log2(x)
             }
             o <- list()
-            fit <- smooth.spline(apply(x,2,avgfun))
+            fit <- smooth.spline(apply(x,sdim,avgfun))
             ci <- ssCI(fit)
             o$profile <- fit$y
             o$upper <- ci$upper
@@ -450,7 +932,7 @@ calcDesignPlotProfiles <- function(covmat,opts,rc) {
                 x <- log2(x)
             }
             o <- list()
-            o$profile <- apply(x,2,avgfun)
+            o$profile <- apply(x,sdim,avgfun)
             varfun <- ifelse(avgfun=="mean","sd","mad")
             va <- apply(x,2,varfun)
             o$upper <- o$profile + va
@@ -461,8 +943,16 @@ calcDesignPlotProfiles <- function(covmat,opts,rc) {
 }
 
 orderProfiles <- function(input,opts,rc=NULL) {
+    if (!is.null(opts$orderBy$custom)) {
+        if (opts$orderBy$order=="descending")
+            sorter <- sort(opts$orderBy$custom,decreasing=TRUE,
+                index.return=TRUE)
+        else
+            sorter <- sort(opts$orderBy$custom,index.return=TRUE)
+        return(sorter)
+    }
     refh <- 1
-    if (length(grep("^(sum|max)",opts$orderBy$what,perl=TRUE))>0) {
+    if (length(grep("^(sum|max|avg)",opts$orderBy$what,perl=TRUE))>0) {
         nc <- nchar(opts$orderBy$what)
         rh <- substr(opts$orderBy$what,nc,nc)
         if (rh!="a") {
@@ -476,46 +966,48 @@ orderProfiles <- function(input,opts,rc=NULL) {
         else
             refh <- 0 # Flag to indicate order by sum/max of all profiles
     }
-    byMax <- bySum <- FALSE
+    byMax <- bySum <- byAvg <- FALSE
     sorter <- list(ix=1:nrow(input[[1]]$profile))
     if (length(grep("^sum",opts$orderBy$what,perl=TRUE))>0)
         bySum <- TRUE
     if (length(grep("^max",opts$orderBy$what,perl=TRUE))>0)
         byMax <- TRUE
+    if (length(grep("^avg",opts$orderBy$what,perl=TRUE))>0)
+        byAvg <- TRUE
     
     if (bySum) {
         if (refh==0) {
-            #theBigMatrix <- do.call("cbind",lapply(input,function(x) {
-            #   return(x$profile)
-            #}))
-            #theSum <- apply(theBigMatrix,1,sum)
-            tmp <- do.call("cbind",lapply(input,function(x,rc) {
-                if (is.null(x$coverage$center))
-                    theCov <- x$coverage
-                else
-                    theCov <- x$coverage$center
-                s <- cmclapply(theCov,function(y) {
-                    if (is.null(y))
-                        return(0)
-                    return(sum(y))
-                },rc=rc)
-                return(unlist(s))
-            },rc=rc))
+            #tmp <- do.call("cbind",lapply(input,function(x,rc) {
+            #   #if (is.null(x$coverage$center))
+            #    theCov <- x$coverage
+            #    #else
+            #    #    theCov <- x$coverage$center
+            #    s <- cmclapply(theCov,function(y) {
+            #        if (is.null(y))
+            #            return(0)
+            #        return(sum(y))
+            #    },rc=rc)
+            #    return(unlist(s))
+            #},rc=rc))
+            tmp <- do.call("cbind",lapply(input,function(x) {
+                return(apply(x$profile,1,sum))
+            }))
             theVal <- apply(tmp,1,sum)
             names(theVal) <- rownames(input[[1]]$profile)
         }
-        else {
-            if (is.null(input[[refh]]$coverage$center))
-                theCov <- input[[refh]]$coverage
-            else
-                theCov <- input[[refh]]$coverage$center
-            theVal <- unlist(cmclapply(theCov,function(y) {
-                if (is.null(y))
-                    return(0)
-                return(sum(y))
-            },rc=rc))
-            names(theVal) <- rownames(input[[refh]]$profile)
-        }
+        else #{
+            #if (is.null(input[[refh]]$coverage$center))
+            #theCov <- input[[refh]]$coverage
+            #else
+            #    theCov <- input[[refh]]$coverage$center
+            #theVal <- unlist(cmclapply(theCov,function(y) {
+            #    if (is.null(y))
+            #        return(0)
+            #    return(sum(y))
+            #},rc=rc))
+            #names(theVal) <- rownames(input[[refh]]$profile)
+            theVal <- apply(input[[refh]]$profile,1,sum)
+        #}
         if (opts$orderBy$order=="descending")
             sorter <- sort(theVal,decreasing=TRUE,index.return=TRUE)
         else
@@ -523,43 +1015,76 @@ orderProfiles <- function(input,opts,rc=NULL) {
     }
     if (byMax) {
         if (refh==0) {
-            tmp <- do.call("cbind",lapply(input,function(x,rc) {
-                if (is.null(x$coverage$center))
-                    theCov <- x$coverage
-                else
-                    theCov <- x$coverage$center
-                s <- cmclapply(theCov,function(y) {
-                    if (is.null(y))
-                        y <- 0
+            #tmp <- do.call("cbind",lapply(input,function(x,rc) {
+            #    #if (is.null(x$coverage$center))
+            #    theCov <- x$coverage
+            #    #else
+            #    #    theCov <- x$coverage$center
+            #    s <- cmclapply(theCov,function(y) {
+            #        if (is.null(y))
+            #            y <- 0
+            #        m <- max(y)
+            #        mp <- which(y==m)
+            #        if (length(mp)>1)
+            #            return(as.numeric(y[sample(mp,1)]))
+            #        else
+            #            return(as.numeric(y[mp]))
+            #    },rc=rc)
+            #    return(unlist(s))
+            #},rc=rc))
+            tmp <- do.call("cbind",lapply(input,function(x) {
+                return(apply(x$profile,1,function(y) {
                     m <- max(y)
                     mp <- which(y==m)
                     if (length(mp)>1)
-                        return(as.numeric(y[sample(mp,1)]))
+                        return(y[sample(mp,1)])
                     else
-                        return(as.numeric(y[mp]))
-                },rc=rc)
-                return(unlist(s))
-            },rc=rc))
+                        return(y[mp])
+                }))
+            }))
             theVal <- apply(tmp,1,max)
             names(theVal) <- rownames(input[[1]]$profile)
         }
-        else {
-            if (is.null(input[[refh]]$coverage$center))
-                theCov <- input[[refh]]$coverage
-            else
-                theCov <- input[[refh]]$coverage$center
-            theVal <- unlist(cmclapply(theCov,function(y) {
-                if (is.null(y))
-                    y <- 0
+        else #{
+            #if (is.null(input[[refh]]$coverage$center))
+            #theCov <- input[[refh]]$coverage
+            #else
+            #    theCov <- input[[refh]]$coverage$center
+            #theVal <- unlist(cmclapply(theCov,function(y) {
+            #    if (is.null(y))
+            #        y <- 0
+            #    m <- max(y)
+            #    mp <- which(y==m)
+            #    if (length(mp)>1)
+            #        return(as.numeric(y[sample(mp,1)]))
+            #    else
+            #        return(as.numeric(y[mp]))
+            #},rc=rc))
+            #names(theVal) <- rownames(input[[refh]]$profile)
+            theVal <- apply(input[[refh]]$profile,1,function(y) {
                 m <- max(y)
                 mp <- which(y==m)
                 if (length(mp)>1)
-                    return(as.numeric(y[sample(mp,1)]))
+                    return(y[sample(mp,1)])
                 else
-                    return(as.numeric(y[mp]))
-            },rc=rc))
-            names(theVal) <- rownames(input[[refh]]$profile)
+                    return(y[mp])
+            })
+        #}
+        if (opts$orderBy$order=="descending")
+            sorter <- sort(theVal,decreasing=TRUE,index.return=TRUE)
+        else
+            sorter <- sort(theVal,index.return=TRUE)
+    }
+    if (byAvg) {
+        if (refh==0) {
+            tmp <- do.call("cbind",lapply(input,function(x) {
+                return(apply(x$profile,1,mean))
+            }))
+            theVal <- apply(tmp,1,mean)
+            names(theVal) <- rownames(input[[1]]$profile)
         }
+        else 
+            theVal <- apply(input[[refh]]$profile,1,mean)
         if (opts$orderBy$order=="descending")
             sorter <- sort(theVal,decreasing=TRUE,index.return=TRUE)
         else
@@ -573,17 +1098,34 @@ orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
     sortlist <- sorter <- vector("list",length(splitter))
     names(sortlist) <- names(sorter) <- names(splitter)
     
+    if (!is.null(opts$orderBy$custom)) {
+        for (n in names(splitter)) {
+            S <- splitter[[n]]
+            if (opts$orderBy$order=="descending")
+                sortlist[[n]] <- 
+                    sort(opts$orderBy$custom[S],decreasing=TRUE,
+                        index.return=TRUE)$ix
+            else
+                sortlist[[n]] <- sort(opts$orderBy$custom[S],
+                    index.return=TRUE)$ix
+            sorter[[n]] <- S[sortlist[[n]]]
+        }
+        return(unlist(sorter))
+    }
+    
     for (n in names(splitter)) {
         S <- splitter[[n]]
         subcov <- lapply(input,function(x,s) {
-            if (!is.null(x$coverage$center))
-                return(x$coverage$center[s])
-            else
-                return(x$coverage[s])
+            #if (!is.null(x$coverage$center))
+            #    return(x$coverage$center[s])
+            #else
+                #return(x$coverage[s])
+                return(x$profile[s,])
+                
         },S)
             
         refh <- 1
-        if (length(grep("^(sum|max)",opts$orderBy$what,perl=TRUE))>0) {
+        if (length(grep("^(sum|max|avg)",opts$orderBy$what,perl=TRUE))>0) {
             nc <- nchar(opts$orderBy$what)
             rh <- substr(opts$orderBy$what,nc,nc)
             if (rh!="a") {
@@ -597,32 +1139,39 @@ orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
             else
                 refh <- 0 # Flag to indicate order by sum/max of all profiles
         }
-        byMax <- bySum <- FALSE
+        byMax <- bySum <- byAvg <- FALSE
         sortlist[[n]] <- 1:length(S)
         if (length(grep("^sum",opts$orderBy$what,perl=TRUE))>0)
             bySum <- TRUE
         if (length(grep("^max",opts$orderBy$what,perl=TRUE))>0)
             byMax <- TRUE
+        if (length(grep("^avg",opts$orderBy$what,perl=TRUE))>0)
+            byAvg <- TRUE
         
         if (bySum) {
             if (refh==0) {
-                tmp <- do.call("cbind",lapply(subcov,function(x,rc) {
-                    s <- cmclapply(x,function(y) {
-                        if (is.null(y))
-                            return(0)
-                        return(sum(y))
-                    },rc=rc)
-                    return(unlist(s))
-                },rc=rc))
+                #tmp <- do.call("cbind",lapply(subcov,function(x,rc) {
+                #    s <- cmclapply(x,function(y) {
+                #        if (is.null(y))
+                #            return(0)
+                #        return(sum(y))
+                #    },rc=rc)
+                #    return(unlist(s))
+                #},rc=rc))
+                #theVal <- apply(tmp,1,sum)
+                tmp <- do.call("cbind",lapply(subcov,function(x) {
+                    return(apply(x,1,sum))
+                }))
                 theVal <- apply(tmp,1,sum)
             }
-            else {
-                theVal <- unlist(cmclapply(subcov[[refh]],function(y) {
-                    if (is.null(y))
-                        return(0)
-                    return(sum(y))
-                },rc=rc))
-            }
+            else #{
+                #theVal <- unlist(cmclapply(subcov[[refh]],function(y) {
+                #    if (is.null(y))
+                #        return(0)
+                #    return(sum(y))
+                #},rc=rc))
+                theVal <- apply(subcov[[refh]],1,sum)
+            #}
             if (opts$orderBy$order=="descending")
                 sortlist[[n]] <- 
                     sort(theVal,decreasing=TRUE,index.return=TRUE)$ix
@@ -631,33 +1180,66 @@ orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
         }
         if (byMax) {
             if (refh==0) {
-                tmp <- do.call("cbind",lapply(subcov,function(x,rc) {
-                    s <- cmclapply(x,function(y) {
-                        if (is.null(y))
-                            y <- 0
+                #tmp <- do.call("cbind",lapply(subcov,function(x,rc) {
+                #    s <- cmclapply(x,function(y) {
+                #        if (is.null(y))
+                #            y <- 0
+                #        m <- max(y)
+                #        mp <- which(y==m)
+                #        if (length(mp)>1)
+                #            return(as.numeric(y[sample(mp,1)]))
+                #        else
+                #            return(as.numeric(y[mp]))
+                #    },rc=rc)
+                #    return(unlist(s))
+                #},rc=rc))
+                tmp <- do.call("cbind",lapply(subcov,function(x) {
+                    return(apply(x,1,function(y) {
                         m <- max(y)
                         mp <- which(y==m)
                         if (length(mp)>1)
-                            return(as.numeric(y[sample(mp,1)]))
+                            return(y[sample(mp,1)])
                         else
-                            return(as.numeric(y[mp]))
-                    },rc=rc)
-                    return(unlist(s))
-                },rc=rc))
+                            return(y[mp])
+                    }))
+                }))
                 theVal <- apply(tmp,1,max)
             }
             else {
-                theVal <- unlist(cmclapply(subcov[[refh]],function(y) {
-                    if (is.null(y))
-                        y <- 0
+                #theVal <- unlist(cmclapply(subcov[[refh]],function(y) {
+                #    if (is.null(y))
+                #        y <- 0
+                #    m <- max(y)
+                #    mp <- which(y==m)
+                #    if (length(mp)>1)
+                #        return(as.numeric(y[sample(mp,1)]))
+                #    else
+                #        return(as.numeric(y[mp]))
+                #},rc=rc))
+                theVal <- apply(subcov[[refh]],1,function(y) {
                     m <- max(y)
                     mp <- which(y==m)
                     if (length(mp)>1)
-                        return(as.numeric(y[sample(mp,1)]))
+                        return(y[sample(mp,1)])
                     else
-                        return(as.numeric(y[mp]))
-                },rc=rc))
+                        return(y[mp])
+                })
             }
+            if (opts$orderBy$order=="descending")
+                sortlist[[n]] <- 
+                    sort(theVal,decreasing=TRUE,index.return=TRUE)$ix
+            else
+                sortlist[[n]] <- sort(theVal,index.return=TRUE)$ix
+        }
+        if (byAvg) {
+            if (refh==0) {
+                tmp <- do.call("cbind",lapply(subcov,function(x) {
+                    return(apply(x,1,mean))
+                }))
+                theVal <- apply(tmp,1,mean)
+            }
+            else
+                theVal <- apply(subcov[[refh]],1,mean)
             if (opts$orderBy$order=="descending")
                 sortlist[[n]] <- 
                     sort(theVal,decreasing=TRUE,index.return=TRUE)$ix
@@ -667,6 +1249,78 @@ orderProfilesByDesign <- function(input,design,opts,rc=NULL) {
         sorter[[n]] <- S[sortlist[[n]]]
    }
    return(unlist(sorter))
+}
+
+orderSignals <- function(input,opts) {
+    if (!is.null(opts$orderBy$custom)) {
+        if (opts$orderBy$order=="descending")
+            sorter <- sort(opts$orderBy$custom,decreasing=TRUE,
+                index.return=TRUE)
+        else
+            sorter <- sort(opts$orderBy$custom,index.return=TRUE)
+        return(sorter)
+    }
+    refh <- 1
+    if (length(grep("^(sum|max|avg)",opts$orderBy$what,perl=TRUE))>0) {
+        nc <- nchar(opts$orderBy$what)
+        rh <- substr(opts$orderBy$what,nc,nc)
+        rh <- suppressWarnings(as.numeric(rh))
+        if (is.na(rh))
+            warning("Reference profile for heatmap ordering not ",
+                "recognized! Using the 1st...",immediate.=TRUE)
+        else
+            refh <- rh
+    }
+    sorter <- list(ix=1:length(input[[1]]$profile))
+    if (opts$orderBy$order=="descending")
+        sorter <- sort(input[[refh]]$profile,decreasing=TRUE,index.return=TRUE)
+    else
+        sorter <- sort(input[[refh]]$profile,index.return=TRUE)
+    return(sorter)
+}
+
+orderDesignSignals <- function(input,design,opts) {
+    splitter <- split(1:nrow(design),design,drop=TRUE)
+    sortlist <- sorter <- vector("list",length(splitter))
+    names(sortlist) <- names(sorter) <- names(splitter)
+    
+    if (!is.null(opts$orderBy$custom)) {
+        for (n in names(splitter)) {
+            S <- splitter[[n]]
+            if (opts$orderBy$order=="descending")
+                sortlist[[n]] <- 
+                    sort(input[[refh]]$profile[S],decreasing=TRUE,
+                        index.return=TRUE)$ix
+            else
+                sortlist[[n]] <- sort(input[[refh]]$profile[S],
+                        index.return=TRUE)$ix
+            sorter[[n]] <- S[sortlist[[n]]]
+        }
+        return(unlist(sorter))
+    }
+
+    for (n in names(splitter)) {
+        S <- splitter[[n]]
+        refh <- 1
+        if (length(grep("^(sum|max|avg)",opts$orderBy$what,perl=TRUE))>0) {
+            nc <- nchar(opts$orderBy$what)
+            rh <- substr(opts$orderBy$what,nc,nc)
+            rh <- suppressWarnings(as.numeric(rh))
+            if (is.na(rh))
+                warning("Reference profile for heatmap ordering not ",
+                    "recognized! Using the 1st...",immediate.=TRUE)
+            else
+                refh <- rh
+        }
+        sortlist[[n]] <- list(ix=1:length(input[[1]]$profile[S]))
+        if (opts$orderBy$order=="descending")
+            sortlist[[n]] <- sort(input[[refh]]$profile[S],decreasing=TRUE,
+                index.return=TRUE)$ix
+        else
+            sortlist[[n]] <- sort(input[[refh]]$profile[S],index.return=TRUE)$ix
+        sorter[[n]] <- S[sortlist[[n]]]
+    }
+    return(unlist(sorter))
 }
 
 makeHorizontalAnnotation <- function(width,opts,type=c("profile","heatmap")) {

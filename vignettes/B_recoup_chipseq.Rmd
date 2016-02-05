@@ -137,28 +137,30 @@ test <- recoup(
     plotParams=list(plot=FALSE)
 )
 
-plot(test$plots$profile)
-draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
+p <- getr(test,"profile")
+plot(p)
+h <- getr(test,"heatmap")
+draw(h,gap=grid::unit(1,"cm"))
+o <- getr(test,"correlation")
+plot(o)
 ```
 
 The following will produce the previous plot at a lower resolution. The output
-heatmaps will have a common signal scale.
+heatmaps will have a common signal scale. `recoup` objects are resulable so 
+that not all fields have to be recalculated (e.g. coverage is calculated once):
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recoup(
-    input=chip.input,
-    region="tss",
-    type="chipseq",
-    genome=genome,
-    flank=c(2000,2000),
+test2 <- recoup(
+    input=test,
     binParams=list(regionBinSize=100),
-    selector=NULL,
     plotParams=list(plot=FALSE,heatmapScale="common"),
     saveParams=list(ranges=TRUE,coverage=TRUE,profile=TRUE)
 )
 
-plot(test$plots$profile)
-draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
+p <- getr(test2,"profile")
+plot(p)
+h <- getr(test2,"heatmap")
+draw(h,gap=grid::unit(1,"cm"))
 ```
 
 The following will produce the previous plot at a medium resolution. The output
@@ -168,26 +170,22 @@ Also, since we know that we have asked for a rather low resolution, we turn the
 demontrate heatmap brightness.
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recoup(
-    input=chip.input,
+test3 <- recoup(
+    input=test,
     region="tss",
-    type="chipseq",
-    genome=genome,
-    flank=c(2000,2000),
     binParams=list(regionBinSize=200,forceHeatmapBinning=FALSE),
-    selector=NULL,
     plotParams=list(plot=FALSE,profile=FALSE,heatmapScale="common",
-        heatmapFactor=0.5),
-    saveParams=list(ranges=TRUE,coverage=TRUE,profile=TRUE)
+        heatmapFactor=0.5)
 )
 
-draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
+h <- getr(test2,"heatmap")
+draw(h,gap=grid::unit(1,"cm"))
 ```
 
 Like the previous from a configuration file (not evaluated here):
 
 ```{r echo=TRUE, eval=FALSE, message=FALSE, warning=FALSE}
-test <- recoup(
+testc <- recoup(
     input=file.path(test.path,"test_config.txt"),
     region="tss",
     type="chipseq",
@@ -197,8 +195,10 @@ test <- recoup(
     selector=NULL
 )
 
-#plot(test$plots$profile)
-#draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
+#p <- getr(testc,"profile")
+#plot(p)
+#h <- getr(testc,"heatmap")
+#draw(h,gap=grid::unit(1,"cm"))
 ```
 
 ### Gene body profiles
@@ -221,27 +221,25 @@ test <- recoup(
     selector=NULL
 )
 
-plot(test$plots$profile)
+p <- getr(test,"profile")
+plot(p)
 ```
 
 The previous plot looks a bit unrealistic. To make it look more realistic, we
 narrow the flanking regions by lowering the resolution and setting a lower 
-number of bins for the flanking regions.
+number of bins for the flanking regions. Remember that output is reusable:
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recoup(
-    input=chip.input,
-    region="genebody",
-    type="chipseq",
-    genome=genome,
-    flank=c(2000,2000),
+test2 <- recoup(
+    input=test,
     binParams=list(flankBinSize=50,regionBinSize=200),
-    plotParams=list(plot=FALSE),
-    selector=NULL
+    plotParams=list(plot=FALSE)
 )
 
-plot(test$plots$profile)
-draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
+p <- getr(test2,"profile")
+plot(p)
+h <- getr(test2,"heatmap")
+draw(h,gap=grid::unit(1,"cm"))
 ```
 
 The following will produce the previous plot with k-means clustering (4 
@@ -250,20 +248,17 @@ clustering is applied and the resulting order is applied to the other one) is
 the WT one. Design is auto-created.
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.height=8}
-test <- recoup(
-    input=chip.input,
-    region="genebody",
-    type="chipseq",
-    genome=genome,
-    flank=c(2000,2000),
-    binParams=list(flankBinSize=50,regionBinSize=200),
-    selector=NULL,
-    plotParams=list(plot=FALSE),
+test3 <- recoup(
+    input=test2,
     kmParams=list(k=4,reference="WT_H4K20me1")
 )
 
-plot(test$plots$profile)
-draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
+p <- getr(test3,"profile")
+plot(p)
+h <- getr(test3,"heatmap")
+draw(h,gap=grid::unit(1,"cm"))
+o <- getr(test3,"profile")
+plot(o)
 ```
 
 Let's now look at plots with designs. The following will produce plots like the
@@ -274,21 +269,17 @@ applied to facet the profiles:
 design <- file.path(test.path,"design.txt")
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recoup(
-    input=chip.input,
-    design=design,
-    region="genebody",
-    type="chipseq",
-    genome=genome,
-    flank=c(2000,2000),
-    binParams=list(flankBinSize=50,regionBinSize=200),
-    selector=NULL,
-    preprocessParams=list(normalize="none"),
-    plotParams=list(plot=FALSE)
+test4 <- recoup(
+    input=test2,
+    design=design
 )
 
-plot(test$plots$profile)
-draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
+p <- getr(test4,"profile")
+plot(p)
+h <- getr(test4,"heatmap")
+draw(h,gap=grid::unit(1,"cm"))
+o <- getr(test3,"profile")
+plot(o)
 ```
 
 With recoup, you can also apply several orderings of the profiles, like from
@@ -298,7 +289,7 @@ following will order the profiles according to the sum of the coverage of the
 WT profile in decreasing order. You cal also try the commented out options:
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recoup(
+test5 <- recoup(
     input=chip.input,
     region="tss",
     type="chipseq",
@@ -315,8 +306,8 @@ test <- recoup(
     selector=NULL
 )
 
-plot(test$plots$profile)
-draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
+h <- getr(test5,"heatmap")
+draw(h,gap=grid::unit(1,"cm"))
 ```
 
 Like above but with a design (reduced by one factor to reduce heatmap plot
@@ -327,24 +318,22 @@ design1 <- read.delim(file.path(test.path,"design.txt"),row.names=1)
 d1 <- as.data.frame(design1[,2])
 rownames(d1) <- rownames(design1)
 
-test <- recoup(
-    input=chip.input,
+test6 <- recoup(
+    input=test5,
     design=d1,
-    region="tss",
-    type="chipseq",
-    genome=genome,
-    flank=c(2000,2000),
     orderBy=list(what="hc1"),
     binParams=list(flankBinSize=50,regionBinSize=100,sumStat="mean",
         smooth=TRUE,forceHeatmapBinning=FALSE),
-    selector=NULL,
     plotParams=list(plot=FALSE,profile=FALSE)
 )
 
-draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
+h <- getr(test6,"heatmap")
+draw(h,gap=grid::unit(1,"cm"))
 ```
+__Note 1__: `recoup` list objects can be subsetted/sliced. Have a look at the
+man page of the `sliceObj` function.
 
-__Note__: In all cases, the ordering of the profiles as well as well as the 
+__Note 2__: In all cases, the ordering of the profiles as well as well as the 
 elements (genomic areas) belonging to a group wheh using design files for 
 grouping, can be acquired either from the `rownames` of the `profile` member
 of the `recoup$data` output list object, or from the `design` member of the 

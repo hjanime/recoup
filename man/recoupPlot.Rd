@@ -2,17 +2,34 @@
 \alias{recoupPlot}
 \title{Plot list objects returned by recoup}
 \usage{
-    recoupPlot(recoupObj, plotParams = list(plot = FALSE, 
-        profile = TRUE, heatmap = TRUE, device = "x11"), 
-        mainh = 1)
+    recoupPlot(recoupObj, what = c("profile", "heatmap", 
+        "heatmap"), device = c("x11", "png", "jpg", "tiff", 
+        "bmp", "pdf", "ps"), outputDir = ".",
+        outputBase = paste(sapply(recoupObj, function(x) 
+            return(x$data$id)), sep = "_"), mainh = 1)
 }
 \arguments{
     \item{recoupObj}{a list object created from 
     \code{\link{recoup}}.}
 
-    \item{plotParams}{see the \code{plotParams} in the 
-    main \code{\link{recoup}} function. A minimum valid
-    version is provided for default plotting.}
+    \item{what}{one or more of \code{"profile"}, 
+    \code{"heatmap"} or \code{"correlation"}. See the 
+    \code{plotParams} in the main \code{\link{recoup}} 
+    function. A minimum valid version is provided for 
+    default plotting.}
+    
+    \item{device}{a valid R graphics device. See the 
+    \code{plotParams} in the main \code{\link{recoup}} 
+    function.}
+    
+    \item{outputDir}{a valid directory when device is not
+    \code{"x11"}. See the \code{plotParams} in the main 
+    \code{\link{recoup}} function.}
+    
+    \item{outputBase}{a valid file name to be used as 
+    basis when device is not \code{"x11"}. See the 
+    \code{plotParams} in the main \code{\link{recoup}} 
+    function. Defaults to a concatenation of sample ids.}
     
     \item{mainh}{the reference heatmap for ordering
     operations. Normally, calculated in 
@@ -25,15 +42,13 @@
     \code{recoup} plots.
 }
 \description{
-    This function takes as input argument and output object
+    This function takes as input argument an output object
     from \code{\link{recoup}} and plots the \code{ggplot2} 
     and \code{ComplexHeatmap} objects stored there.
 }
 \examples{
 # Load some data
 data("recoup_test_data",package="recoup")
-
-pp <- 
 
 # Calculate coverages
 test.tss <- recoup(

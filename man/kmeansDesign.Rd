@@ -7,8 +7,9 @@
 \arguments{
     \item{input}{a list object created from 
     \code{\link{recoup}} or partially processed by
-    \code{\link{recoup}}. See the main input to 
-    \code{\link{recoup}} for further information}
+    \code{\link{recoup}} or its \code{data} member.
+    See the main input to \code{\link{recoup}} for 
+    further information.}
 
     \item{design}{See the respective argument in 
     \code{\link{recoup}} for further information}
@@ -47,7 +48,9 @@ test.tss <- recoup(
 )
 
 # Re-design based on k-means
-design <- kmeansDesign(test.tss,kmParams=list(k=2))
+kmParams=list(k=2,nstart=20,algorithm="MacQueen",iterMax=20,
+    reference=NULL,seed=42)
+design <- kmeansDesign(test.tss$data,kmParams=kmParams)
 }
 \author{
     Panagiotis Moulos

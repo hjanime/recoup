@@ -567,7 +567,7 @@ getUcscDbl <- function(org,type,refdb="ucsc") {
         stop("R package RSQLite is required to use annotation from UCSC!")
 
     http.base <- paste("http://hgdownload.soe.ucsc.edu/goldenPath/",
-        get.ucsc.organism(org),"/database/",sep="")
+        getUcscOrganism(org),"/database/",sep="")
     table.defs <- getUcscTabledef(org,type,refdb,"fields")
     file.list <- vector("list",length(table.defs))
     names(file.list) <- names(table.defs)

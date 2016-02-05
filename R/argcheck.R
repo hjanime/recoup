@@ -1,3 +1,17 @@
+checkMainArgs <- function(main.args) {
+    in.args <- names(main.args)[-1] # 1st member name of calling function
+    valid.args <- c("input","design","region","type","genome","refdb",
+        "flank","fraction","orderBy","binParams","selector","preprocessParams",
+        "plotParams","saveParams","kmParams","strandedParams","ggplotParams",
+        "complexHeatmapParams","bamParams","onTheFly","localDbHome","rc")
+    invalid <- setdiff(in.args,valid.args)
+    if (length(invalid) > 0) {
+        for (i in 1:length(invalid))
+            warning("Unknown input argument to recoup function: ",invalid[i],
+                " ...Ignoring...",now=TRUE)
+    }
+}
+
 checkTextArgs <- function(arg.name,arg.value,arg.list,multiarg=FALSE) {
     if (multiarg) {
         arg.value <- arg.value
@@ -118,7 +132,7 @@ validateListArgs <- function(what,arg.list) {
         stop(what," argument must be a list!")
     switch(what,
         orderBy = {
-            valid.1 <- names(arg.list) %in% c("what","order")
+            valid.1 <- names(arg.list) %in% c("what","order","custom")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
@@ -131,16 +145,23 @@ validateListArgs <- function(what,arg.list) {
                     switch(n,
                         what = {
                             arg.list$what <- tolower(arg.list$what[1])
-                            if (length(grep("^(none|sum|max|hc)",
+                            if (length(grep("^(none|sum|max|avg|hc)",
                                 arg.list$what,perl=TRUE))==0)
                                 stop("The what option of orderBy parameter ",
                                     "must be one of \"none\", \"suma\", ",
-                                    "\"sumn\", \"maxa\", \"maxn\", \"hcn\".")
+                                    "\"sumn\", \"maxa\", \"maxn\", \"avga\",",
+                                    "\"avgn\", \"hcn\".")
                         },
                         order = {
                             arg.list$order <- tolower(arg.list$order[1])
                             checkTextArgs("The order option of orderBy",
                                 arg.list$order,c("descending","ascending"))
+                        },
+                        custom = {
+                            if (!is.null(arg.list$custom) 
+                                && !is.numeric(arg.list$order))
+                                stop("The custom option of orderBy parameter ",
+                                    "must be a numeric vector or NULL!")
                         }
                     )
                 }
@@ -277,8 +298,9 @@ validateListArgs <- function(what,arg.list) {
         },
         plotParams = {
             valid.1 <- names(arg.list) %in% c("plot","profile","heatmap",
-                "device","signalScale","heatmapScale","heatmapFactor",
-                "outputDir","outputBase")
+                "correlation","device","signalScale","heatmapScale",
+                "heatmapFactor","singleFacet","multiFacet","conf","outputDir",
+                "outputBase")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
@@ -303,6 +325,16 @@ validateListArgs <- function(what,arg.list) {
                             if (!is.logical(arg.list$heatmap))
                                 stop("The heatmap option of plotParams ",
                                     "parameter must be TRUE or FALSE!")
+                        },
+                        correlation = {
+                            if (!is.logical(arg.list$correlation))
+                                stop("The correlation option of plotParams ",
+                                    "parameter must be TRUE or FALSE!")
+                        },
+                        conf = {
+                            if (!is.logical(arg.list$conf))
+                                stop("The conf option of plotParams parameter ",
+                                    "must be TRUE or FALSE!")
                         },
                         device = {
                             arg.list$device <- tolower(arg.list$device[1])
@@ -336,6 +368,24 @@ validateListArgs <- function(what,arg.list) {
                                 arg.list$heatmapFactor,"numeric",0,"gt"
                             )
                         },
+                        singleFacet = {
+                            arg.list$singleFacet <- 
+                                tolower(arg.list$singleFacet[1])
+                            checkTextArgs(
+                                "The facet option of plotParams",
+                                arg.list$singleFacet,
+                                c("none","wrap","grid")
+                            )
+                        },
+                        multiFacet = {
+                            arg.list$multiFacet <- 
+                                tolower(arg.list$multiFacet[1])
+                            checkTextArgs(
+                                "The facet option of plotParams",
+                                arg.list$multiFacet,
+                                c("wrap","grid")
+                            )
+                        },
                         outputDir = {
                             if (!dir.exists(arg.list$outputDir))
                                 stop("The outputDir option of plotParams must ",
@@ -355,7 +405,7 @@ validateListArgs <- function(what,arg.list) {
         },
         saveParams = {
             valid.1 <- names(arg.list) %in% c("ranges","coverage","profile",
-                "profilePlot","heatmapPlot")
+                "profilePlot","heatmapPlot","correlationPlot")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
@@ -390,6 +440,12 @@ validateListArgs <- function(what,arg.list) {
                             if (!is.logical(arg.list$heatmapPlot))
                                 stop("The heatmapPlot option of saveParams ",
                                     "parameter must be TRUE or FALSE!")
+                        },
+                        correlationPlot = {
+                            if (!is.logical(arg.list$correlationPlot))
+                                stop("The correlationPlot option of ",
+                                    "saveParams parameter must be TRUE or ",
+                                    "FALSE!")
                         }
                     )
                 }

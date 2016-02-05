@@ -3,11 +3,11 @@
 \title{Remove data from recoup list object}
 \usage{
     removeData(input, type = c("ranges", "coverage", 
-		"profile"))
+        "profile"))
 }
 \arguments{
     \item{input}{a list object created from 
-    \code{\link{recoup}}.}
+    \code{\link{recoup}} or its \code{data} member.}
 
     \item{type}{one of \code{"ranges"}, \code{"coverage"},
     \code{"profile"}.}
@@ -24,7 +24,7 @@
     \code{\link{recoup}}.
 }
 \details{
-	This function clears members of the \code{\link{recoup}}
+    This function clears members of the \code{\link{recoup}}
     output object which typically take some time to be 
     calculated but it is necessary to clean them if the 
     user wants to change input parameters that cause 

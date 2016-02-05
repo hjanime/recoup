@@ -12,7 +12,7 @@ splitBySeqname <- function(gr,rc=NULL) {
     return(gr.list)
 }
 
-splitVector <- function(x,n,interp,seed=42) {
+splitVector <- function(x,n,interp,stat,seed=42) {
     isRle <- ifelse(is(x,"Rle"),TRUE,FALSE)
     if (length(x)<n) {
         if (isRle)
@@ -79,7 +79,9 @@ splitVector <- function(x,n,interp,seed=42) {
     add <- sample(1:n,dif)
     bin.fac[add] <- bin.fac[add]+1
     f <- factor(rep(1:n,bin.fac))
-    return(split(x,f))
+    #return(split(x,f))
+    S <- split(x,f)
+    return(llply(S,stat))
 }
 
 readConfig <- function(input) {
@@ -135,77 +137,146 @@ readConfig <- function(input) {
     return(output)
 }
 
-preprocessRanges <- function(input,preprocessParams,bamParams=NULL,rc=NULL) {
-    hasRanges <- sapply(input,function(x) is.null(x$ranges))
-    if (!any(hasRanges))
-        return(input)
-    # Else, BAM/BED files must be read, so we check if they exist
-    if (!all(sapply(input,function(x) {
-        file.exists(x$file)
-    })))
-        stop("One or more input files cannot be found! Check the validity of ",
-            "the file paths.")
-    switch(preprocessParams$normalize,
-        none = {
-            ranges <- cmclapply(input,function(x,pp,p) {
-                message("Reading sample ",x$name)
-                return(readRanges(x$file,x$format,pp$spliceAction,
-                    pp$spliceRemoveQ,params=p))
-            },preprocessParams,bamParams,rc=rc)
-            names(ranges) <- names(input)
-            #for (n in names(input))
-            #    input[[n]]$ranges <- ranges[[n]]
-            for (i in 1:length(input))
-                input[[i]]$ranges <- ranges[[i]]
-        },
-        linear = { # Same as none but will process after coverage calculation
-            ranges <- cmclapply(input,function(x,pp,p) {
-                message("Reading sample ",x$name)
-                return(readRanges(x$file,x$format,pp$spliceAction,
-                    pp$spliceRemoveQ,params=p))
-            },preprocessParams,bamParams,rc=rc)
-            names(ranges) <- names(input)
-            #for (n in names(input))
-            #    input[[n]]$ranges <- ranges[[n]]
-            for (i in 1:length(input))
-                input[[i]]$ranges <- ranges[[i]]
-        },
-        downsample = {
-            ranges <- cmclapply(input,function(x,pp,p) {
-                message("Reading sample ",x$name)
-                return(readRanges(x$file,x$format,pp$spliceAction,
-                    pp$spliceRemoveQ,params=p))
-            },preprocessParams,bamParams,rc=rc)
-            libSizes <- lengths(ranges)
-            downto = min(libSizes)
-            set.seed(preprocessParams$seed)
-            downsampleIndex <- lapply(libSizes,function(x,s) {
-                return(sort(sample(x,s)))
-            },downto)
-            names(downsampleIndex) <- names(input)
-            #for (n in names(input))
-            #    input[[n]]$ranges <- ranges[[n]][downsampleIndex[[n]]]
-            for (i in 1:length(input))
-                input[[i]]$ranges <- ranges[[i]][downsampleIndex[[i]]]
-        },
-        sampleto = {
-            ranges <- cmclapply(input,function(x,pp,p) {
-                message("Reading sample ",x$name)
-                return(readRanges(x$file,x$format,pp$spliceAction,
-                    pp$spliceRemoveQ,params=p))
-            },preprocessParams,bamParams,rc=rc)
-            set.seed(preprocessParams$seed)
-            libSizes <- lengths(ranges)
-            downsampleIndex <- lapply(libSizes,function(x,s) {
-                return(sample(x,s))
-            },preprocessParams$sampleTo)
-            names(downsampleIndex) <- names(input)
-            #for (n in names(input))
-            #    input[[n]]$ranges <- ranges[[n]][downsampleIndex[[n]]]
-            for (i in 1:length(input))
-                input[[i]]$ranges <- ranges[[i]][downsampleIndex[[i]]]
+kmeansDesign <- function(input,design=NULL,kmParams) {
+    if (missing(kmParams)) {
+        if (!is.null(input$data))
+            kmParams <- getr(input,"kmParams")
+        else
+            kmParams <- getDefaultListArgs("kmParams")
+    }
+    else {
+        kmParamsDefault <- getDefaultListArgs("kmParams")
+        kmParams <- setArg(kmParamsDefault,kmParams)
+        kmParams <- validateListArgs("kmParams",kmParams)
+    }
+    if (!is.null(input$data)) # Fed with recoup object
+        input <- input$data
+    hasProfile <- sapply(input,function(x) is.null(x$profile))
+    if (any(hasProfile))
+        stop("Profile matrices for k-means clustering are missing from the ",
+            "input object. Have you called the profileMatrix function?")
+    if (kmParams$k>0) {
+        if (is.null(kmParams$reference)) {
+            # Merge matrices to one and perform k-means. As normally coverages 
+            # are normalized (the user is responsible to tell recoup how to do 
+            # this and has been done at this point), we are legalized to do that
+            message("Performing k-means (k=",kmParams$k,") clustering on ",
+                "total profiles")
+            theBigMatrix <- do.call("cbind",lapply(input,function(x) {
+                return(as.matrix(x$profile))
+            }))
+            kcl <- kmeans(theBigMatrix,centers=kmParams$k,
+                iter.max=kmParams$iterMax,nstart=kmParams$nstart,
+                algorithm=kmParams$algorithm)
         }
-    )
+        else {
+            message("Performing k-means (k=",kmParams$k,") clustering using ",
+                "the ",input[[kmParams$reference]]$name," sample profile as ",
+                "reference")
+            set.seed(kmParams$seed)
+            kcl <- kmeans(input[[kmParams$reference]]$profile,
+                centers=kmParams$k,iter.max=kmParams$iterMax,
+                nstart=kmParams$nstart,algorithm=kmParams$algorithm)
+        }
+        kmorder <- kcl$cluster
+        #names(kmorder) <- rownames(input[[1]]$profile)
+        if (!is.null(design)) {
+            kmorder <- kmorder[rownames(design)]
+            card <- table(kmorder)[kmorder]
+            design$kcluster <- as.factor(paste("Cluster ",kmorder," (",card,
+                ")",sep=""))
+        }
+        else {
+            card <- table(kmorder)[kmorder]
+            design <- data.frame(kcluster=paste("Cluster ",kmorder," (",card,
+                ")",sep=""))
+            rownames(design) <- names(kmorder)
+        }
+    }
+    return(design)
+}
+
+sliceObj <- function(obj,i=NULL,j=NULL,dropPlots=FALSE,rc=NULL) {
+    if (is.null(obj$data))
+        stop("No data slot found in obj! Are you sure it's an output from",
+            "recoup?")
+    if (!is.null(obj$callopts$selector))
+        obj$callopts$selector <- NULL
+    if (!is.null(i)) {
+        if (!is.numeric(i) && !is.character(i))
+            stop("Horizontal indexing must be numeric or character!")
+        for (s in 1:length(obj$data)) {
+            if (!is.null(obj$data[[s]]$coverage))
+                obj$data[[s]]$coverage <- obj$data[[s]]$coverage[i]
+            if (!is.null(obj$data[[s]]$profile))
+                obj$data[[s]]$profile <- obj$data[[s]]$profile[i,,drop=FALSE]
+        }
+        if (!is.null(obj$design))
+            obj$design <- obj$design[i,,drop=FALSE]
+    }
+    if (!is.null(j)) {
+        if (!is.numeric(j) && !is.character(j))
+            stop("Vertical indexing must be numeric or character!")
+        obj$data <- obj$data[j]
+    }
+    if (dropPlots)
+        obj$plots <- list(profile=NULL,heatmap=NULL)
+    else {
+        message("Recalculating profile plots after slicing...")
+        if (obj$callopts$plotParams$profile) {
+            message("  profile")
+            obj <- recoupProfile(obj,rc=rc)
+        }
+        if (obj$callopts$plotParams$heatmap) {
+            message("  heatmap")
+            obj <- recoupHeatmap(obj,rc=rc)
+        }
+    }
+    return(obj)
+}
+
+decideChanges <- function(input,currCall,prevCall) {
+    if (is.null(prevCall))
+        return(input)
+    # Check region and flank
+    if (currCall$region != prevCall$region 
+        || !all(currCall$flank == prevCall$flank))
+        input <- removeData(input,c("coverage","profile"))
+    # Check binParams
+    if (currCall$binParams$flankBinSize != prevCall$binParams$flankBinSize
+        || currCall$binParams$regionBinSize != prevCall$binParams$regionBinSize
+        || currCall$binParams$sumStat != prevCall$binParams$sumStat
+        || currCall$binParams$smooth != prevCall$binParams$smooth
+        || currCall$binParams$interpolation != prevCall$binParams$interpolation
+        || currCall$binParams$forceHeatmapBinning != 
+            prevCall$binParams$forceHeatmapBinning
+        || currCall$binParams$forcedBinSize != prevCall$binParams$forcedBinSize)
+        input <- removeData(input,"profile")
+    if (currCall$preprocessParams$normalize != 
+        prevCall$preprocessParams$normalize
+        || currCall$preprocessParams$sampleTo != 
+        prevCall$preprocessParams$sampleTo
+        || currCall$preprocessParams$spliceAction != 
+        prevCall$preprocessParams$spliceAction
+        || currCall$preprocessParams$spliceRemoveQ != 
+        prevCall$preprocessParams$spliceRemoveQ
+        || currCall$preprocessParams$spliceRemoveQ != 
+        prevCall$preprocessParams$spliceRemoveQ
+        || currCall$preprocessParams$seed != prevCall$preprocessParams$seed)
+        input <- removeData(input,c("ranges","coverage","profile"))
+        
+        return(input)
+}
+
+removeData <- function(input,type=c("ranges","coverage","profile")) {
+    type <- tolower(type)
+    checkTextArgs("type",type,c("ranges","coverage","profile"),multiarg=TRUE)
+    if (!is.null(input$data)) # Gave recoup output object
+        for (i in 1:length(input$data))
+            input$data[[i]][type] <- NULL
+    else
+        for (i in 1:length(input))
+            input[[i]][type] <- NULL
     return(input)
 }
 
@@ -222,40 +293,6 @@ calcLinearFactors <- function(input,preprocessParams) {
         linFac <- preprocessParams$sampleTo/libSizes
     names(linFac) <- names(input)
     return(linFac)
-}
-
-readRanges <- function(input,format,sa,sq,params=NULL) {
-    if (format=="bam")
-        return(readBam(input,sa,sq,params))
-    else if (format=="bed")
-        return(readBed(input))
-}
-
-readBam <- function(bam,sa=c("keep","remove","split"),sq=0.75,params=NULL) {
-    sa = sa[1]
-    checkTextArgs("sa",sa,c("keep","remove","split"),multiarg=FALSE)
-    checkNumArgs("sq",sq,"numeric",c(0,1),"botheq")
-    switch(sa,
-        keep = {
-            return(trim(as(readGAlignments(file=bam),"GRanges")))
-        },
-        split = {
-            return(trim(unlist(grglist(readGAlignments(file=bam)))))
-        },
-        remove = {
-            reads <- trim(as(readGAlignments(file=bam),"GRanges"))
-            qu <- quantile(width(reads),sq)
-            rem <- which(width(reads)>qu)
-            if (length(rem)>0)
-                reads <- reads[-rem]
-            message("  Excluded ",length(rem)," reads")
-            return(reads)
-        }
-    )
-}
-
-readBed <- function(bed) {
-    bed <- import.bed(sample.files[n],trackLine=FALSE,asRangedData=FALSE)
 }
 
 cmclapply <- function(...,rc) {
@@ -291,7 +328,8 @@ getDefaultListArgs <- function(arg) {
         orderBy = {
             return(list(
                 what=c("none","suma","sumn","maxa","maxn","hc"),
-                order=c("descending","ascending")
+                order=c("descending","ascending"),
+                custom=NULL
             ))
         },
         binParams = {
@@ -332,9 +370,13 @@ getDefaultListArgs <- function(arg) {
                 plot=TRUE,
                 profile=TRUE,
                 heatmap=TRUE,
+                correlation=TRUE,
                 signalScale=c("natural","log2"),
                 heatmapScale=c("each","common"),
                 heatmapFactor=1,
+                singleFacet=c("none","wrap","grid"),
+                multiFacet=c("wrap","grid"),
+                conf=TRUE,
                 device=c("x11","png","jpg","tiff","bmp","pdf","ps"),
                 outputDir=".",
                 outputBase=NULL
@@ -346,7 +388,8 @@ getDefaultListArgs <- function(arg) {
                 coverage=TRUE,
                 profile=TRUE,
                 profilePlot=TRUE,
-                heatmapPlot=TRUE
+                heatmapPlot=TRUE,
+                correlationPlot=TRUE
             ))
         },
         kmParams = {
@@ -358,6 +401,124 @@ getDefaultListArgs <- function(arg) {
                 reference=NULL,
                 seed=42
             ))
+        }
+    )
+}
+
+setr <- function(obj,key=c("design","profile","heatmap","correlation","orderBy",
+    "kmParams","plotParams"),value) {
+    checkTextArgs("key",key,c("design","profile","heatmap","correlation",
+        "orderBy","kmParams","plotParams"))
+    switch(key,
+        design = {
+            if (!is.null(design)) {
+                if (!is.data.frame(design))
+                    design <- read.delim(design,row.names=1)
+                nfac <- ncol(design)
+                if (length(obj$data)>1 && nfac>2)
+                    stop("When more than one files are provided for coverage ",
+                        "generation, the maximum number of allowed design ",
+                        "factors is 2")
+                if (length(obj$data)>1 && nfac>1 && obj$callopts$kmParams$k>0)
+                    stop("When more than one files are provided for coverage ",
+                        "generation and k-means clustering is also requested, ",
+                        "the maximum number of allowed design factors is 1")
+                if (length(obj$data)==1 && nfac>3)
+                    stop("The maximum number of allowed design factors is 3")
+                if (length(obj$data)==1 && nfac>2 && obj$callopts$kmParams$k>0)
+                    stop("The maximum number of allowed design factors when ",
+                        "k-means clustering is requested is 2")
+            }
+            obj$design <- design
+        },
+        profile = {
+            if (!all(class(value)==c("gg","ggplot"))) {
+                warning("The supplied profile plot is not a ggplot object! ",
+                    "Ignoring...",immediate.=TRUE)
+                return(obj)
+            }
+            obj$plots$profile <- value
+        },
+        heatmap = {
+            if (class(value)!=c("HeatmapList")) {
+                warning("The supplied heatmap plot is not a Heatmap object! ",
+                    "Ignoring...",immediate.=TRUE)
+                return(obj)
+            }
+            obj$plots$heatmap <- value
+        },
+        correlation = {
+            if (!all(class(value)==c("gg","ggplot"))) {
+                warning("The supplied correlation plot is not a ggplot ",
+                    " object! Ignoring...",immediate.=TRUE)
+                return(obj)
+            }
+            obj$plots$correlation <- value
+        },
+        orderBy = {
+            orderByDefault <- getDefaultListArgs("orderBy")
+            orderBy <- setArg(orderByDefault,value)
+            orderBy <- validateListArgs("orderBy",orderBy)
+            obj$callopts$orderBy <- orderBy
+            # Should change also complexHeatmapParams
+            if (length(grep("hc",orderBy$what))>0
+                && !(obj$callopts$complexHeatmapParams$main$cluster_rows 
+                || obj$callopts$complexHeatmapParams$group$cluster_rows)) {
+                message("Changing also hierarchical clustering parameters to ",
+                    "comply with new orderBy settings.")
+                obj$callopts$complexHeatmapParams$main$cluster_rows <- TRUE
+                obj$callopts$complexHeatmapParams$group$cluster_rows <- TRUE
+            }
+            if ((obj$callopts$complexHeatmapParams$main$cluster_rows 
+                || obj$callopts$complexHeatmapParams$group$cluster_rows)
+                && length(grep("hc",orderBy$what))==0) {
+                message("Changing also hierarchical clustering parameters to ",
+                    "comply with new orderBy settings.")
+                obj$callopts$complexHeatmapParams$main$cluster_rows <- FALSE
+                obj$callopts$complexHeatmapParams$group$cluster_rows <- FALSE
+            }
+        },
+        kmParams = {
+            kmParamsDefault <- getDefaultListArgs("kmParams")
+            kmParams <- setArg(kmParamsDefault,value)
+            kmParams <- validateListArgs("kmParams",kmParams)
+            obj$callopts$kmParams <- kmParams
+        },
+        plotParams = {
+            plotParamsDefault <- getDefaultListArgs("plotParams")
+            plotParams <- setArg(plotParamsDefault,value)
+            plotParams <- validateListArgs("plotParams",plotParams)
+            obj$callopts$plotParams <- plotParams
+        }
+    )
+    return(obj)
+}
+
+getr <- function(obj,key=c("design","profile","heatmap","correlation","orderBy",
+    "kmParams","plotParams")) {
+    checkTextArgs("key",key,c("design","profile","heatmap","correlation",
+        "orderBy","kmParams","plotParams"))
+    switch(key,
+        design = {
+            return(obj$design)
+        },
+        profile = {
+            return(obj$plots$profile)
+        },
+        heatmap = {
+            return(obj$plots$heatmap)
+        },
+        correlation = {
+            return(obj$plots$correlation)
+        },
+        orderBy = {
+            return(obj$callopts$orderBy)
+        },
+        kmParams = {
+            return(obj$callopts$kmParams)
+        },
+        plotParams = {
+            return(obj$callopts$plotParams)
         }
     )
 }

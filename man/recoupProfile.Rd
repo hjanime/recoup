@@ -2,18 +2,26 @@
 \alias{recoupProfile}
 \title{Plot (faceted) average genomic coverage profiles}
 \usage{
-    recoupProfile(recoupObj, rc = NULL)
+    recoupProfile(recoupObj, samples = NULL, rc = NULL)
 }
 \arguments{
     \item{recoupObj}{a list object created from 
     \code{\link{recoup}}.}
+    
+    \item{samples}{which samples to plot. Either numeric
+    (denoting the sample indices) or sample ids. Defaults
+    to \code{NULL} for all samples.}
 
     \item{rc}{fraction (0-1) of cores to use in a multicore 
     system. It defaults to \code{NULL} (no parallelization).}
 }
 \value{
-    The function returns a \code{ggplot2} object with the 
-    created profile plot.
+    The function returns the \code{recoupObj} with the
+    slot for the profile plot filled. See also the 
+    \code{recoupPlot}, \code{getr} and \code{setr}
+    function.
+    %The function returns a \code{ggplot2} object with the 
+    %created profile plot.
 }
 \description{
     This function takes as input argument and output object

@@ -1,6 +1,6 @@
 \name{calcCoverage}
 \alias{calcCoverage}
-\title{Build a local annotation database for recoup}
+\title{Calculate coverages over a genomic region}
 \usage{
     calcCoverage(input, mask, strand = NULL,
         ignore.strand = TRUE, rc = NULL)

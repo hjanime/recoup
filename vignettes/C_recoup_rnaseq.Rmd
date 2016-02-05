@@ -108,8 +108,10 @@ test <- recoup(
     plotParams=list(plot=FALSE,signalScale="log2")
 )
 
-plot(test$plots$profile)
-draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
+p <- getr(test,"profile")
+plot(p)
+h <- getr(test,"heatmap")
+draw(h,gap=grid::unit(1,"cm"))
 ```
 
 Like the previous one, but we are making use of the `selector` argument which 
@@ -117,7 +119,7 @@ allows some easy subsetting of predefined genomic regions. We also apply
 downsampling normalization and ordering.
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
-test <- recoup(
+test2 <- recoup(
     input=rna.input,
     design=NULL,
     type="rnaseq",
@@ -130,29 +132,30 @@ test <- recoup(
     plotParams=list(plot=FALSE,signalScale="log2")
 )
 
-plot(test$plots$profile)
-draw(test$plots$heatmap,gap=grid::unit(1,"cm"))
+p <- getr(test2,"profile")
+plot(p)
+h <- getr(test2,"heatmap")
+draw(h,gap=grid::unit(1,"cm"))
 ```
 
-No design, but k-means clustering:
+No design, but k-means clustering. Remember that `recoup` objects are reusable:
 
 ```{r echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE, fig.height=8}
-test <- recoup(
-    input=rna.input,
-    design=NULL,
-    type="rnaseq",
-    genome="mm9",
-    flank=c(1000,1000),
+test3 <- recoup(
+    input=test,
     binParams=list(flankBinSize=50,regionBinSize=200),
-    selector=NULL,
     kmParams=list(k=4,reference="WT"),
     plotParams=list(plot=FALSE,signalScale="log2",heatmap=FALSE)
 )
 
-plot(test$plots$profile)
+p <- getr(test3,"profile")
+plot(p)
 ```
 
-__Note__: In all cases, the ordering of the profiles as well as well as the 
+__Note 1__: `recoup` list objects can be subsetted/sliced. Have a look at the
+man page of the `sliceObj` function.
+
+__Note 2__: In all cases, the ordering of the profiles as well as well as the 
 elements (genomic areas) belonging to a group wheh using design files for 
 grouping, can be acquired either from the `rownames` of the `profile` member
 of the `recoup$data` output list object, or from the `design` member of the 

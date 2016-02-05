@@ -12,10 +12,12 @@
             "rn5", "dm3", "danrer7", "pantro4", "susscr3"),
         refdb = c("ensembl", "ucsc", "refseq"),
         flank = c(2000, 2000),
+        fraction = 1,
         orderBy = list(
             what = c("none", "suma", "sumn", 
-            "maxa","maxn", "hcn"), 
-            order = c("descending", "ascending")
+            "maxa","maxn", "avga", "avgn", "hcn"), 
+            order = c("descending", "ascending"),
+            custom = NULL
         ),
         binParams = list(
             flankBinSize = 0,
@@ -27,11 +29,7 @@
             forceHeatmapBinning = TRUE,
             forcedBinSize = c(50, 200)
         ),
-        selector = list(
-            id = NULL, 
-            biotype = getBiotypes(genome), 
-            exonType = NULL
-        ),
+        selector = NULL,
         preprocessParams = list(
             normalize = c("none", "linear", 
                 "downsample","sampleto"),
@@ -44,9 +42,13 @@
             plot = TRUE,
             profile = TRUE,
             heatmap = TRUE,
+            correlation = TRUE,
             signalScale = c("natural", "log2"),
             heatmapScale = c("common", "each" ),
             heatmapFactor = 1,
+            singleFacet = c("none", "wrap", "grid"),
+            multiFacet = c("wrap", "grid"),
+            conf = TRUE,
             device = c("x11", "png", "jpg", "tiff", "bmp",
                 "pdf", "ps"),
             outputDir = ".",
@@ -57,13 +59,14 @@
             coverage = TRUE,
             profile = TRUE,
             profilePlot = TRUE,
-            heatmapPlot = TRUE
+            heatmapPlot = TRUE,
+            correlationPlot = TRUE
         ),
         kmParams = list(
             k = 0,
             nstart = 20,
-            algorithm = c("Hartigan-Wong", "Lloyd",
-                "Forgy", "MacQueen"),
+            algorithm = c("Hartigan-Wong", 
+                "Lloyd", "Forgy", "MacQueen"),
             iterMax = 20,
             reference = NULL,
             seed = 42
@@ -94,7 +97,7 @@
                 cluster_rows = ifelse(length(grep(
                     "hc", orderBy$what)) > 0, TRUE, FALSE),
                 cluster_columns = FALSE,
-                column_title_gp = grid::gpar(fontsize = 12, 
+                column_title_gp = grid::gpar(fontsize = 10, 
                     font = 2),
                 show_row_names = FALSE,
                 show_column_names = FALSE,
@@ -106,11 +109,11 @@
                 cluster_rows = ifelse(length(grep(
                     "hc", orderBy$what)) > 0, TRUE, FALSE),
                 cluster_columns = FALSE,
-                column_title_gp = grid::gpar(fontsize = 12, 
+                column_title_gp = grid::gpar(fontsize = 10, 
                     font = 2),
                 show_row_names = FALSE,
                 show_column_names = FALSE,
-                row_title_gp = grid::gpar(fontsize = 10,
+                row_title_gp = grid::gpar(fontsize = 8,
                     font = 2),
                 gap = unit(5, "mm"),
                 heatmap_legend_param = list(
@@ -172,6 +175,10 @@
     base pairs to flank upstream and downstream the 
     \code{region}. Minimum flank is 500bp and maximum is
     50kb. It is always expressed in bp.}
+    
+    \item{fraction}{a number from 0 to 1 (default) denoting
+    the fraction of total data to be used. See Details for
+    further information.}
 
     \item{orderBy}{a named list whose members control the
     order of the genomic regions (related to the 
@@ -180,13 +187,19 @@
     fields:
     \itemize{
         \item \code{what}: one of \code{"none"} (default),
-        \code{"suma", "sumn", "maxa", "maxn", "hcn"}, where
-        \code{n} in \code{"sumn", "maxn", "hcn"} is the 
-        index of the profile which sould be used as 
-        reference. See Details for further information.
+        \code{"suma"}, \code{"sumn"}, \code{"maxa"},
+        \code{"maxn"}, \code{"avga"}, \code{"avgn"}, 
+        \code{"hcn"}, where \code{n} in \code{"sumn"},
+        \code{"maxn"}, \code{"hcn"} is the index of the 
+        profile which sould be used as reference. See 
+        Details for further information.
         \item \code{order}: either \code{"descending"}
         (default) for ordering coverages from highest to 
         lowest, or \code{"ascending"} for the opposite.
+        \item \code{custom}: a numeric vector of custom
+        values (e.g. RNA abundance) that will be used to
+        sort all the profiles. If provided, \code{what}
+        will be ignored. Defaults to \code{NULL}.
     }}
     
     \item{binParams}{a named list whose members control the
@@ -227,9 +240,9 @@
         (default) and the profile resolution is very high
         (see \code{flankBinSize} and \code{regionBinSize}
         above), binning is applied prior to heatmap profile
-        generation, otherwise the heatmaps will be big 
-        sized and will take a lot of time to render. Set 
-        to \code{FALSE} if both \code{flankBinSize} and 
+        generation, otherwise the heatmaps will be oversized 
+        and will take a lot of time to render. Set to 
+        \code{FALSE} if both \code{flankBinSize} and 
         \code{regionBinSize} are not zero so as to avoid
         unecessary profile recalculations.
         \item \code{forcedBinSize}: a vector with two
@@ -242,8 +255,9 @@
     
     \item{selector}{a named list whose members control 
     some subsetting abilities regarding the input reference
-    genomic regions (\code{genome} argument. The list has 
-    the following fields:
+    genomic regions (\code{genome} argument) or NULL 
+    (default) when the \code{genome} argument is/may be 
+    custom. When list, it has the following fields:
     \itemize{
         \item \code{id}: a vector of ids of the same type
         as those present in the \code{genome} file or
@@ -289,7 +303,7 @@
     profile (curve and heatmap) plotting parameters. The 
     list has the following fields:
     \itemize{
-        \item \code{profile}: if set to \code{TRUE} 
+        \item \code{plot}: if set to \code{TRUE} 
         (default), the plots created with the calculated
         profiles with \code{recoup} are displayed. Set to
         \code{FALSE} to plot later using the output object.
@@ -297,10 +311,14 @@
         (default), the average coverage profile across
         the genomic regions of preference is calculated.
         Set to \code{FALSE} to suppress this.
-        \item \code{profile}: if set to \code{TRUE} 
+        \item \code{heatmap}: if set to \code{TRUE} 
         (default), the coverage heatmap profile across
         the genomic regions of preference is calculated.
         Set to \code{FALSE} to suppress this.
+        \item \code{correlation}: if set to \code{TRUE} 
+        (default), the plots created with the calculated
+        coverage correlations are displayed. Set to
+        \code{FALSE} to plot later using the output object.
         \item \code{signalScale}: one of \code{"natural"}
         (default) or \code{"log2"} to control the signal
         scale of the final coverage plots. Hint: use
@@ -315,6 +333,23 @@
         value by which the upper color scale limit of
         the heatmap profile is multiplied. Defaults to 
         \code{1}. See Details for further information.
+        \item \code{singleFacet}: how should \code{ggplot2}
+        should facet the profiles with 1-factor design and
+        only one sample whose profile will be plotted. Can
+        be \code{"none"} (default), \code{"wrap"} or 
+        \code{"grid"}. When \code{"none"}, no gridding is
+        applied and design factors are distinguished by 
+        colour. With more than one design factors, the 
+        \code{multiFacet} option below is used.
+        \item \code{multiFacet}: how should \code{ggplot2}
+        should facet the profiles with 1-factor design and
+        more than one samples whose profile will be plotted.
+        Can be \code{"wrap"} (default) or \code{"grid"}.
+        2 or 3 (3rd would be colour) factor designs are 
+        faceted with \code{"grid"}.
+        \item \code{conf}: plot also confidence intervals
+        using \code{geom_ribbon} in profile or correlation
+        plots.
         \item \code{device}: the R plotting device to 
         redirect the plots to. Can be 
         \code{"x11"} (default), \code{"png", "jpg", 
@@ -350,7 +385,7 @@
         \code{\link{recoupProfile}} and 
         \code{\link{recoupHeatmap}}.
         \item \code{profilePlot}: set to \code{TRUE} 
-        (default) to store \code{ggplot2} object containing
+        (default) to store \code{ggplot} object containing
         the average coverage plot. Set to \code{FALSE} for 
         not saving. Must be \code{TRUE} if you wish to use
         the \code{recoup} output later with 
@@ -361,14 +396,21 @@
         \code{FALSE} for not saving. Must be \code{TRUE} 
         if you wish to use the \code{recoup} output later 
         with \code{\link{recoupPlot}}.
+        \item \code{correlationPlot}: set to \code{TRUE} 
+        (default) to store \code{ggplot} object containing
+        coverage correlation plot. Set to \code{FALSE} for 
+        not saving. Must be \code{TRUE} if you wish to use 
+        the \code{recoup} output later with 
+        \code{\link{recoupPlot}}.
     }
     See the Details section for some additional 
     information.}
     
     \item{kmParams}{a named list which controls the 
-     execution of k-means clustering (using standard
-     R base functions). The list has the following fields:
-     \itemize{
+    execution of k-means clustering using standard R base
+    function \code{\link{kmeans}} otherwise. The list has
+    the following fields:
+    \itemize{
         \item \code{k}: the number of clusters for k-means
         clustering. When \code{0} (default), no k-means
         clustering is performed.
@@ -385,11 +427,11 @@
         into one big matrix and k-means clustering is 
         performed on that matrix.
         \item \code{seed}: See \code{\link{kmeans}}.
-     }
-     The result of k-means clustering will be appended to
-     \code{design} as an additional field. If \code{design}
-     is \code{NULL}, it will be created and passed to the
-     plotting functions.}
+    }
+    The result of k-means clustering will be appended to
+    \code{design} as an additional field. If \code{design}
+    is \code{NULL}, it will be created and passed to the
+    plotting functions.}
     
     \item{strandedParams}{a named list which controls how
     strand information will be treated (if present). The 
@@ -447,7 +489,7 @@
     system. It defaults to \code{NULL} (no parallelization).}
 }
 \value{
-    a named list with three members:
+    a named list with five members:
     \itemize{
         \item \code{data}: the \code{input} argument if it
         was a list or the resulting list from the unexported
@@ -461,12 +503,18 @@
         will be resued if the input files are not changed.
         \item \code{design}: the design data frame which is
         used to facet the profiles.
-        \item \code{plotopts}: plotting options read from
-        \code{\link{recoupProfile}} and 
-        \code{\link{recoupHeatmap}} functions in order to
-        create the respective plots. It is a simple list 
-        object and users can modify the parameters which 
-        are mostly self-explanatory.
+        %\item \code{plotopts}: plotting options read from
+        %\code{\link{recoupProfile}} and 
+        %\code{\link{recoupHeatmap}} functions in order to
+        %create the respective plots. It is a simple list 
+        %object and users can modify the parameters which 
+        %are mostly self-explanatory.
+        \item \code{plots}: the \code{ggplot2} and/or
+        \code{Heatmap} objects created by \code{recoup}.
+        \item \code{callopts}: the majority of \code{recoup}
+        call parameters. Their storage serves the reuse of
+        a \code{recoup} list object so that only certain 
+        elements of plots are recalculated.
     }
 }
 \description{
@@ -478,7 +526,10 @@
     genomic profile plots for reads derived from ChIP-Seq 
     and RNA-Seq experiments. The function uses ggplot2 and
     ComplexHeatmap graphics facilities for curve and 
-    heatmap coverage profiles respectively.
+    heatmap coverage profiles respectively. The output
+    list object can be reused as input to this function
+    which will automatically recognize which profile 
+    elements needto be recalculated, saving time.
 }
 \details{
     When \code{input} is a list, is should contain as many
@@ -551,6 +602,17 @@
     of equal or unequal size, the behavior is similar
     to the gene body case.
     
+    The \code{fraction} parameter controls the total 
+    fraction of both total reads and genomic regions
+    to be used for profile creation. This means that
+    the total reads for each sample are randomly
+    downsampled to \code{fraction*100\%} of the 
+    original reads and the same applied to the input
+    genomic regions. This practice is followed by 
+    similar packages (like ngs.plot) and serves the
+    purpose of a quick overview of how the actual 
+    profiles look before profiling the whole genome.
+    
     Regarding the \code{orderBy} parameters, for the
     options of the \code{what} parameter \code{"sum"} 
     type of options order profiles according to i) the 
@@ -564,18 +626,21 @@
     of the highest coverage in each genomic profile. Ties
     in the position of highest coverage are broken 
     randomly and sorting is performed with the default R 
-    \code{\link{sort}}. For the \code{"hc"} type of 
-    options, hierarchical clustering is performed on
-    the selected (n) reference profile (e.g. 
-    \code{orderBy$what="hc1"}) and this ordering is
-    applied to the rest of the sample profiles. When 
-    \code{what="none"}, no ordering is performed and 
-    the input order is used (\code{genome} argument).
-    If any design is present through the \code{design}
-    argument or k-means clustering is also performed
-    (through the \code{kmParams} argument), the orderBy
-    directives are applied to each sub-profile created
-    by design or k-means clustering.
+    \code{\link{sort}}. Similarly for \code{"avg"} type
+    of options, the ordering is performed according to
+    the average total coverage of a reference region.
+    For the \code{"hc"} type of options, hierarchical 
+    clustering is performed on the selected (n) 
+    reference profile (e.g. \code{orderBy$what="hc1"}) 
+    and this ordering is applied to the rest of the 
+    sample profiles. When \code{what="none"}, no 
+    ordering is performed and the input order is used 
+    (\code{genome} argument). If any design is present 
+    through the \code{design} argument or k-means 
+    clustering is also performed (through the 
+    \code{kmParams} argument), the orderBy directives 
+    are applied to each sub-profile created by design 
+    or k-means clustering.
     
     Regarding the \code{flankBinSize} field of 
     \code{binParams}, it is used only when 
@@ -700,7 +765,17 @@
     the effect of decreasing the brightness of the heatmap
     as color is saturated before reaching the maximum
     coverage value. If set greater than 1, then the heatmap
-    brightness is increased.
+    brightness is increased. Regarding the \code{correlation}
+    option of \code{plotParams}, if \code{TRUE} then 
+    \code{recoup} calculates average coverage values for
+    each reference region (row-wise in the profile matrices)
+    instead of the average coverage in each base of the
+    reference regions (column-wise in the profile matrices).
+    This is particularly useful for checking whether total
+    genome profiles for some biological factor/condition
+    correlate with each other. This potential correlation 
+    is becoming even clearer when \code{orderBy$what} is 
+    not \code{"none"}.
     
     Regarding the usage of \code{saveParams} argument, 
     this is useful for several purposes: one is for re-using
@@ -711,6 +786,32 @@
     simply replotting the profiles using 
     \code{\link{recoupProfile}} and/or 
     \code{\link{recoupHeatmap}} functions.
+    
+    As a note regarding parallel calculations, the number 
+    of cores assigned to \code{recoup} depends both on the
+    number of cores and the available RAM in your system. 
+    The most RAM expensive part of \code{recoup} is 
+    currently the construction of binned profile matrices.
+    If you have a lot of cores (e.g. 16) but less than 
+    128Gb of RAM for this number of cores, you should avoid
+    using all cores, especially with large BAM files. Half of
+    them would be more appropriate.
+    
+    Finally, the output list of \code{recoup} can be provided
+    as input again to \code{recoup} with some input parameters
+    changed. \code{recoup} will then automatically recognize 
+    what has been changed and recalculate some, all or none
+    of the genomic region profiles, depending on what input 
+    parameters have changed. For example, if any of the 
+    ordering options change (e.g. from no profile ordering to
+    k-means clustering), then no recalculations are performed 
+    and the process is very fast. If region binning is changed
+    (\code{binParams$flankBinSize} or 
+    \code{binParams$regionBinSize}), then only profile matrices
+    are recalculated and coverages are maintained. If any of the
+    \code{preprocessParams} changes, this causes all object 
+    including the short reads to be reimported and profiles
+    recalculated from the beginning.
 }
 \examples{
 # Load some sample data
