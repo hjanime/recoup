@@ -11,9 +11,22 @@ buildAnnotationStore <- function(organisms,sources,
         "rn5","dm3","danrer7","pantro4","susscr3"),multiarg=FALSE)
     checkTextArgs("sources",sources,c("ensembl","ucsc","refseq"),multiarg=FALSE)
     
-    # Retrieve gene annotations
+    if (!requireNamespace("GenomeInfoDb"))
+        stop("R package GenomeInfoDb is required to construct annotation ",
+            "stores!")
+    
     for (s in sources) {
         for (o in organisms) {
+            # Retrieving genome info
+            message("Retrieving genome information for ",o)
+            sf <- GenomeInfoDb::fetchExtendedChromInfoFromUCSC(
+                getUcscOrganism(o))
+            rownames(sf) <- as.character(sf[,1])
+            sf <- sf[getValidChrs(o),]
+            sf <- Seqinfo(seqnames=sf[,1],seqlengths=sf[,2],
+                isCircular=sf[,3],genome=getUcscOrganism(o))
+        
+            # Retrieve gene annotations
             store.path <- file.path(home,s,o)
             if (!dir.exists(store.path))
                 dir.create(store.path,recursive=TRUE,mode="0755")
@@ -26,17 +39,14 @@ buildAnnotationStore <- function(organisms,sources,
                 ann <- getAnnotation(o,"gene",refdb=s,rc=rc)
                 gene <- makeGRangesFromDataFrame(
                     df=ann,
+                    seqinfo=sf,
                     keep.extra.columns=TRUE,
                     seqnames.field="chromosome"
                 )
                 save(gene,file=file.path(store.path,"gene.rda"),compress=TRUE)
             }
-        }
-    }
-
-    # Retrieve exon annotations
-    for (s in sources) {
-        for (o in organisms) {
+            
+            # Retrieve exon annotations
             store.path <- file.path(home,s,o)
             if (!dir.exists(store.path))
                 dir.create(store.path,recursive=TRUE,mode="0755")
@@ -50,6 +60,7 @@ buildAnnotationStore <- function(organisms,sources,
                 ann <- getAnnotation(o,"exon",refdb=s,rc=rc)
                 ann.gr <- makeGRangesFromDataFrame(
                     df=ann,
+                    seqinfo=sf,
                     keep.extra.columns=TRUE,
                     seqnames.field="chromosome"
                 )
@@ -65,10 +76,16 @@ buildAnnotationStore <- function(organisms,sources,
                     "wish to recreate it choose forceDownload = TRUE.")
             else {
                 message("Merging exons for ",o," from ",s)
-                ann.gr <- reduceExons(ann.gr,rc=rc)
+                ann.list <- reduceExons(ann.gr,rc=rc)
+                ann.gr <- ann.list$model
                 names(ann.gr) <- as.character(ann.gr$exon_id)
                 sexon <- split(ann.gr,ann.gr$gene_id)
-                save(sexon,file=file.path(store.path,"summarized_exon.rda"),
+                activeLength <- ann.list$length
+                names(activeLength) <- names(sexon)
+                #names(ann.gr) <- as.character(ann.gr$exon_id)
+                #sexon <- split(ann.gr,ann.gr$gene_id)
+                save(sexon,activeLength,
+                    file=file.path(store.path,"summarized_exon.rda"),
                     compress=TRUE)
             }
         }
@@ -104,7 +121,13 @@ reduceExons <- function(gr,rc=NULL) {
         mcols(merged) <- meta
         return(merged)
     },gr,gn,bt,rc=rc)
-    return(do.call("c",red.list))
+    len <- unlist(cmclapply(red.list,function(x) {
+        return(sum(width(x)))
+    },rc=rc))
+    names(len) <- names(red.list)
+    #return(list(model=GRangesList(red.list),length=len))
+    #return(do.call("c",red.list))
+    return(list(model=do.call("c",red.list),length=len))
 }
 
 getAnnotation <- function(org,type,refdb="ensembl",rc=NULL) {

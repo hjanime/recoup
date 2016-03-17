@@ -159,7 +159,7 @@ validateListArgs <- function(what,arg.list) {
                         },
                         custom = {
                             if (!is.null(arg.list$custom) 
-                                && !is.numeric(arg.list$order))
+                                && !is.numeric(arg.list$custom))
                                 stop("The custom option of orderBy parameter ",
                                     "must be a numeric vector or NULL!")
                         }
@@ -247,7 +247,7 @@ validateListArgs <- function(what,arg.list) {
         },
         preprocessParams = {
             valid.1 <- names(arg.list) %in% c("normalize","sampleTo",
-                "spliceAction","spliceRemoveQ","seed")
+                "spliceAction","spliceRemoveQ","bedGenome","seed")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
@@ -287,6 +287,15 @@ validateListArgs <- function(what,arg.list) {
                                 arg.list$spliceRemoveQ,"numeric",c(0,1),"both"
                             )
                         },
+                        bedGenome = {
+                            if (!is.na(arg.list$bedGenome))
+                                checkTextArgs(
+                                    "The bedGenome option of preprocessParams",
+                                    arg.list$bedGenome,c("hg18","hg19","hg38",
+                                        "mm9","mm10","rn5","dm3","danrer7",
+                                        "pantro4","susscr3")
+                                )
+                        },
                         seed = {
                             if (!is.numeric(arg.list$seed))
                                 stop("The seed option of preprocessParams ",
@@ -299,8 +308,8 @@ validateListArgs <- function(what,arg.list) {
         plotParams = {
             valid.1 <- names(arg.list) %in% c("plot","profile","heatmap",
                 "correlation","device","signalScale","heatmapScale",
-                "heatmapFactor","singleFacet","multiFacet","conf","outputDir",
-                "outputBase")
+                "heatmapFactor","corrScale","corrSmoothPar","singleFacet",
+                "multiFacet","conf","outputDir","outputBase")
             not.valid.1 <- which(!valid.1)
             if (length(not.valid.1)>0) {
                 warning("The following ",what," argument names are invalid ",
@@ -366,6 +375,21 @@ validateListArgs <- function(what,arg.list) {
                             checkNumArgs(
                                 "The heatmapFactor option of plotParams",
                                 arg.list$heatmapFactor,"numeric",0,"gt"
+                            )
+                        },
+                        corrScale = {
+                            arg.list$corrScale <- 
+                                tolower(arg.list$corrScale[1])
+                            checkTextArgs(
+                                "The corrScale option of plotParams",
+                                arg.list$corrScale,
+                                c("normalized","each")
+                            )
+                        },
+                        corrSmoothPar = {
+                            checkNumArgs(
+                                "The corrSmoothPar option of plotParams",
+                                arg.list$corrSmoothPar,"numeric",c(0,1),"both"
                             )
                         },
                         singleFacet = {

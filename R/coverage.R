@@ -75,8 +75,14 @@ coverageRnaRef <- function(input,genomeRanges,helperRanges,flank,
     hasCoverage <- sapply(input,function(x) is.null(x$coverage))
     if (!any(hasCoverage))
         return(input)
-    leftRanges <- getFlankingRanges(helperRanges,flank[1],"upstream")
-    rightRanges <- getFlankingRanges(helperRanges,flank[2],"downstream")
+    if (flank[1]==0)
+        leftRanges <- getFlankingRanges(helperRanges,1,"upstream")
+    else
+        leftRanges <- getFlankingRanges(helperRanges,flank[1],"upstream")
+    if (flank[1]==0)
+        rightRanges <- getFlankingRanges(helperRanges,1,"downstream")
+    else
+        rightRanges <- getFlankingRanges(helperRanges,flank[2],"downstream")
     names(input) <- sapply(input,function(x) return(x$id))
     for (n in names(input)) {
         theRanges <- splitBySeqname(input[[n]]$ranges)

@@ -3,10 +3,10 @@
 \title{Plot list objects returned by recoup}
 \usage{
     recoupPlot(recoupObj, what = c("profile", "heatmap", 
-        "heatmap"), device = c("x11", "png", "jpg", "tiff", 
+        "correlation"), device = c("x11", "png", "jpg", "tiff", 
         "bmp", "pdf", "ps"), outputDir = ".",
         outputBase = paste(sapply(recoupObj, function(x) 
-            return(x$data$id)), sep = "_"), mainh = 1)
+            return(x$data$id)), sep = "_"), mainh = 1, ...)
 }
 \arguments{
     \item{recoupObj}{a list object created from 
@@ -36,6 +36,9 @@
     \code{\link{recoup}}. See also the \code{\link{draw}}
     function in the \code{ComplexHeatmap} package. Deafults
     to the first heatmap.}
+    
+   \item{...}{further parameters passed either to 
+   \code{ggsave} or the base graphics devices of R.}
 }
 \value{
     This function does not returns anything, just plots the

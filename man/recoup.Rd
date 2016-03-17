@@ -36,6 +36,10 @@
             sampleTo = 1e+6,
             spliceAction = c("split", "keep", "remove"),
             spliceRemoveQ = 0.75,
+            bedGenome = ifelse(genome \%in\% c("hg18", "hg19",
+                "hg38", "mm9", "mm10", "rn5", "dm3", 
+                "danrer7", "pantro4", "susscr3"), genome, 
+                NA),
             seed = 42
         ),
         plotParams = list(
@@ -46,6 +50,9 @@
             signalScale = c("natural", "log2"),
             heatmapScale = c("common", "each" ),
             heatmapFactor = 1,
+            corrScale = c("normalized", "each"),
+            corrSmoothPar = ifelse(is.null(design), 0.1, 
+                0.5),
             singleFacet = c("none", "wrap", "grid"),
             multiFacet = c("wrap", "grid"),
             conf = TRUE,
@@ -173,7 +180,7 @@
 
     \item{flank}{a vector of length two with the number of
     base pairs to flank upstream and downstream the 
-    \code{region}. Minimum flank is 500bp and maximum is
+    \code{region}. Minimum flank is 0bp and maximum is
     50kb. It is always expressed in bp.}
     
     \item{fraction}{a number from 0 to 1 (default) denoting
@@ -293,6 +300,10 @@
         for read filtering when \code{spliceAction} is
         \code{"remove"}. See Details for further 
         explanations.
+        \item \code{bedGenome}: one of the supported
+        genomes, as when reading from bed files, 
+        chromosomal lenghts are not available and must
+        be retrieved with another way.
         \item \code{seed}: seed for random number 
         generation to be used when \code{spliceAction} is 
         \code{"downsample"} or \code{"sampleto"}. See 
@@ -333,6 +344,18 @@
         value by which the upper color scale limit of
         the heatmap profile is multiplied. Defaults to 
         \code{1}. See Details for further information.
+        \item \code{corrScale}: either \code{"normalized"}
+        (default) or \code{"each"}. Controls the scale
+        display in coverage correlation plots. See Details 
+        for further information.
+        \item \code{corrSmoothPar}: a numeric value between
+        0 and 1 which controls the smoothing of correlation
+        plots. Its default value is controlled by the 
+        presence of \code{design}. See Details for further 
+        information.
+        \item \code{corrScale}: either \code{"normalized"}
+        (default) or \code{"each"}. See Details for further
+        information.
         \item \code{singleFacet}: how should \code{ggplot2}
         should facet the profiles with 1-factor design and
         only one sample whose profile will be plotted. Can
@@ -775,7 +798,25 @@
     genome profiles for some biological factor/condition
     correlate with each other. This potential correlation 
     is becoming even clearer when \code{orderBy$what} is 
-    not \code{"none"}.
+    not \code{"none"}. Regarding the \code{corrScale} option
+    of \code{plotParams}, it controls whether the average
+    coverage curves over the set of reference genomic 
+    regions (one average coverage vale per genomic region,
+    note the difference with the profiles where the coverage
+    is calculated over the genomic locations themselves)
+    should be normalized to a 0-1 scale or not. This is 
+    particularly useful when plotting data from different
+    libraries (e.g. PolII and H3K27me1 occupancy over gene
+    bodies) where other types of normalization (e.g. read
+    downsampling cannot be applied). Regarding the 
+    \code{corrSmoothPar} option of \code{plotParams}, it 
+    controls the smoothing parameter for coverage 
+    correlation curves. If \code{design} is present, 
+    spline smoothing is applied 
+    (\code{\link{smooth.spline}}) with \code{spar=0.5}
+    else lowess smoothing is applied (\code{\link{lowess}})
+    with \code{f=0.1}. \code{corrSmoothPar} controls the
+    \code{spar} and \code{f} respectively.
     
     Regarding the usage of \code{saveParams} argument, 
     this is useful for several purposes: one is for re-using

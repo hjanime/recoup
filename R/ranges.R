@@ -13,7 +13,7 @@ preprocessRanges <- function(input,preprocessParams,bamParams=NULL,rc=NULL) {
             ranges <- cmclapply(input,function(x,pp,p) {
                 message("Reading sample ",x$name)
                 return(readRanges(x$file,x$format,pp$spliceAction,
-                    pp$spliceRemoveQ,params=p))
+                    pp$spliceRemoveQ,pp$bedGenome,params=p))
             },preprocessParams,bamParams,rc=rc)
             names(ranges) <- names(input)
             for (i in 1:length(input))
@@ -23,7 +23,7 @@ preprocessRanges <- function(input,preprocessParams,bamParams=NULL,rc=NULL) {
             ranges <- cmclapply(input,function(x,pp,p) {
                 message("Reading sample ",x$name)
                 return(readRanges(x$file,x$format,pp$spliceAction,
-                    pp$spliceRemoveQ,params=p))
+                    pp$spliceRemoveQ,pp$bedGenome,params=p))
             },preprocessParams,bamParams,rc=rc)
             names(ranges) <- names(input)
             for (i in 1:length(input))
@@ -33,7 +33,7 @@ preprocessRanges <- function(input,preprocessParams,bamParams=NULL,rc=NULL) {
             ranges <- cmclapply(input,function(x,pp,p) {
                 message("Reading sample ",x$name)
                 return(readRanges(x$file,x$format,pp$spliceAction,
-                    pp$spliceRemoveQ,params=p))
+                    pp$spliceRemoveQ,pp$bedGenome,params=p))
             },preprocessParams,bamParams,rc=rc)
             libSizes <- lengths(ranges)
             downto = min(libSizes)
@@ -49,7 +49,7 @@ preprocessRanges <- function(input,preprocessParams,bamParams=NULL,rc=NULL) {
             ranges <- cmclapply(input,function(x,pp,p) {
                 message("Reading sample ",x$name)
                 return(readRanges(x$file,x$format,pp$spliceAction,
-                    pp$spliceRemoveQ,params=p))
+                    pp$spliceRemoveQ,pp$bedGenome,params=p))
             },preprocessParams,bamParams,rc=rc)
             set.seed(preprocessParams$seed)
             libSizes <- lengths(ranges)
@@ -81,8 +81,11 @@ getRegionalRanges <- function(ranges,region,flank) {
         custom = {
             if (all(width(ranges)==1))
                 return(promoters(ranges,upstream=flank[1],downstream=flank[2]))
-            else
-                return(ranges)
+            else {
+                w <- width(ranges)
+                ranges <- promoters(ranges,upstream=flank[1],downstream=0)
+                return(resize(ranges,width=w+flank[1]+flank[2]))
+            }
         }
     )
 }
@@ -96,11 +99,11 @@ getFlankingRanges <- function(ranges,flank,dir=c("upstream","downstream")) {
     }
 }
 
-readRanges <- function(input,format,sa,sq,params=NULL) {
+readRanges <- function(input,format,sa,sq,bg,params=NULL) {
     if (format=="bam")
         return(readBam(input,sa,sq,params))
     else if (format=="bed")
-        return(readBed(input))
+        return(readBed(input,bg))
 }
 
 readBam <- function(bam,sa=c("keep","remove","split"),sq=0.75,params=NULL) {
@@ -126,6 +129,16 @@ readBam <- function(bam,sa=c("keep","remove","split"),sq=0.75,params=NULL) {
     )
 }
 
-readBed <- function(bed) {
-    bed <- import.bed(bed,trackLine=FALSE,asRangedData=FALSE)
+readBed <- function(bed,bg) {
+    if (!requireNamespace("GenomeInfoDb"))
+        stop("R package GenomeInfoDb is required to retrieve chromosome ",
+            "lengths when importing reads in bed files!")
+    bed <- trim(import.bed(bed,trackLine=FALSE))
+    sf <- GenomeInfoDb::fetchExtendedChromInfoFromUCSC(getUcscOrganism(bg))
+    rownames(sf) <- as.character(sf[,1])
+    sf <- sf[seqlevels(bed),]
+    sf <- Seqinfo(seqnames=sf[,1],seqlengths=sf[,2],
+        isCircular=sf[,3],genome=getUcscOrganism(bg))
+    seqinfo(bed) <- sf
+    return(bed)
 }

@@ -23,37 +23,57 @@ profileMatrix <- function(input,flank,binParams,rc=NULL) {
                 flank=flank,where="center",rc=rc
             )
             if (binParams$flankBinSize!=0) {
-                message(" upstream")
-                #left <- binCoverageMatrix(input[[n]]$coverage$upstream,
-                #    binSize=binParams$flankBinSize,stat=binParams$sumStat,
-                #    interpolation=binParams$interpolation,rc=rc)
-                left <- binCoverageMatrix(
-                    input[[n]]$coverage,binSize=binParams$flankBinSize,
-                    stat=binParams$sumStat,
-                    interpolation=binParams$interpolation,flank=flank,
-                    where="upstream",rc=rc
-                )
-                message(" downstream")
-                #right <- binCoverageMatrix(input[[n]]$coverage$downstream,
-                #    binSize=binParams$flankBinSize,stat=binParams$sumStat,
-                #    interpolation=binParams$interpolation,rc=rc)
-                right <- binCoverageMatrix(
-                    input[[n]]$coverage,binSize=binParams$flankBinSize,
-                    stat=binParams$sumStat,
-                    interpolation=binParams$interpolation,flank=flank,
-                    where="downstream",rc=rc
-                )
+                r <- flank/sum(flank)
+                if (flank[1]==0)
+                    left <- NULL
+                else {
+                    message(" upstream")
+                    #left <- binCoverageMatrix(input[[n]]$coverage$upstream,
+                    #    binSize=binParams$flankBinSize,stat=binParams$sumStat,
+                    #    interpolation=binParams$interpolation,rc=rc)
+                    left <- binCoverageMatrix(
+                        input[[n]]$coverage,
+                        binSize=round(2*binParams$flankBinSize*r[1]),
+                        stat=binParams$sumStat,
+                        interpolation=binParams$interpolation,flank=flank,
+                        where="upstream",rc=rc
+                    )
+                }
+                if (flank[2]==0)
+                    right <- NULL
+                else {
+                    message(" downstream")
+                    #right <- binCoverageMatrix(input[[n]]$coverage$downstream,
+                    #    binSize=binParams$flankBinSize,stat=binParams$sumStat,
+                    #    interpolation=binParams$interpolation,rc=rc)
+                    right <- binCoverageMatrix(
+                        input[[n]]$coverage,
+                        binSize=round(2*binParams$flankBinSize*r[2]),
+                        stat=binParams$sumStat,
+                        interpolation=binParams$interpolation,flank=flank,
+                        where="downstream",rc=rc
+                    )
+                }
             }
             else {
-                message(" upstream")
-                #left <- baseCoverageMatrix(input[[n]]$coverage$upstream,rc=rc)
-                left <- baseCoverageMatrix(input[[n]]$coverage,flank=flank,
-                    where="upstream",rc=rc)
-                message(" downstream")
-                #right <- baseCoverageMatrix(input[[n]]$coverage$downstream,
-                #    rc=rc)
-                right <- baseCoverageMatrix(input[[n]]$coverage,flank=flank,
-                    where="downstream",rc=rc)
+                if (flank[1]==0)
+                    left <- NULL
+                else {
+                    message(" upstream")
+                    #left <- baseCoverageMatrix(input[[n]]$coverage$upstream,
+                    #   rc=rc)
+                    left <- baseCoverageMatrix(input[[n]]$coverage,flank=flank,
+                        where="upstream",rc=rc)
+                }
+                if (flank[2]==0)
+                    right <- NULL
+                else {
+                    message(" downstream")
+                    #right <- baseCoverageMatrix(input[[n]]$coverage$downstream,
+                    #    rc=rc)
+                    right <- baseCoverageMatrix(input[[n]]$coverage,flank=flank,
+                        where="downstream",rc=rc)
+                }
             }
             input[[n]]$profile <- cbind(left,center,right)
             rownames(input[[n]]$profile) <- names(input[[n]]$coverage)

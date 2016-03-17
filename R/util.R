@@ -196,7 +196,7 @@ kmeansDesign <- function(input,design=NULL,kmParams) {
     return(design)
 }
 
-sliceObj <- function(obj,i=NULL,j=NULL,dropPlots=FALSE,rc=NULL) {
+sliceObj <- function(obj,i=NULL,j=NULL,k=NULL,dropPlots=FALSE,rc=NULL) {
     if (is.null(obj$data))
         stop("No data slot found in obj! Are you sure it's an output from",
             "recoup?")
@@ -215,9 +215,71 @@ sliceObj <- function(obj,i=NULL,j=NULL,dropPlots=FALSE,rc=NULL) {
             obj$design <- obj$design[i,,drop=FALSE]
     }
     if (!is.null(j)) {
-        if (!is.numeric(j) && !is.character(j))
-            stop("Vertical indexing must be numeric or character!")
-        obj$data <- obj$data[j]
+        if (!is.numeric(j))
+            stop("Vertical indexing must be numeric!")
+        n <- ncol(obj$data[[1]]$profile)
+        if (obj$callopts$region %in% c("tss","tes")
+            || obj$callopts$customIsBase) {
+            if (obj$callopts$binParams$regionBinSize==0)
+                obj$callopts$flank <- c(min(j),n-max(j))
+            else {
+                f <- obj$callopts$flank/obj$callopts$binParams$regionBinSize
+                obj$callopts$flank <- c(round(min(j)*f[1]),
+                    round((n-max(j))*f[2]))
+            }
+        }
+        else {
+            if (obj$callopts$binParams$flankBinSize==0) {
+                if (min(j)<obj$callopts$flank[1])
+                    obj$callopts$flank[1] <- min(j)
+                else
+                    obj$callopts$flank[1] <- 0
+                if ((n-max(j))<obj$callopts$flank[2])
+                    obj$callopts$flank[2] <- n-max(j)
+                else
+                    obj$callopts$flank[2] <- 0
+            }
+            else {
+                flankSpace <- 2*obj$callopts$binParams$flankBinSize
+                oFlank <- obj$callopts$flank
+                r <- obj$callopts$flank/sum(obj$callopts$flank)
+                original.start.index <- round(r[1]*flankSpace)
+                original.end.index <- round(n - r[2]*flankSpace)
+                nonZeroFlank <- FALSE
+                if (min(j)<original.start.index) {
+                    obj$callopts$flank[1] <- 
+                        round((original.start.index - min(j))*
+                            obj$callopts$flank[1]/original.start.index)
+                    nonZeroFlank <- TRUE
+                }
+                else
+                    obj$callopts$flank[1] <- 0
+                if (max(j)>original.end.index) {
+                    obj$callopts$flank[2] <- 
+                        round((max(j) - original.end.index)*
+                            obj$callopts$flank[2]/(n - original.end.index))
+                    nonZeroFlank <- TRUE
+                }
+                else
+                    obj$callopts$flank[2] <- 0
+                if (nonZeroFlank)
+                    obj$callopts$binParams$flankBinSize <- round(0.5*flankSpace*
+                            sum(obj$callopts$flank)/sum(oFlank))
+                obj$callopts$binParams$forcedBinSize[1] <- 
+                    obj$callopts$binParams$flankBinSize
+                if (all(obj$callopts$flank==0))
+                    obj$callopts$region <- "custom"
+            }
+        }
+        for (s in 1:length(obj$data)) {
+            if (!is.null(obj$data[[s]]$profile))
+                obj$data[[s]]$profile <- obj$data[[s]]$profile[,j,drop=FALSE]
+        }
+    }
+    if (!is.null(k)) {
+        if (!is.numeric(k) && !is.character(k))
+            stop("Sample indexing must be numeric or character!")
+        obj$data <- obj$data[k]
     }
     if (dropPlots)
         obj$plots <- list(profile=NULL,heatmap=NULL)
@@ -230,6 +292,10 @@ sliceObj <- function(obj,i=NULL,j=NULL,dropPlots=FALSE,rc=NULL) {
         if (obj$callopts$plotParams$heatmap) {
             message("  heatmap")
             obj <- recoupHeatmap(obj,rc=rc)
+        }
+        if (obj$callopts$plotParams$correlation) {
+            message("  correlation")
+            obj <- recoupCorrelation(obj,rc=rc)
         }
     }
     return(obj)
@@ -323,7 +389,7 @@ ssCI <- function(fit) {
     return(list(lower=lower,upper=upper))
 }
 
-getDefaultListArgs <- function(arg) {
+getDefaultListArgs <- function(arg,design=NULL,genome=NULL) {
     switch(arg,
         orderBy = {
             return(list(
@@ -349,6 +415,9 @@ getDefaultListArgs <- function(arg) {
                 sampleTo=1e+6,
                 spliceAction=c("split","keep","remove"),
                 spliceRemoveQ=0.75,
+                bedGenome=ifelse(!is.null(genome) && genome %in% c("hg18",
+                    "hg19","hg38","mm9","mm10","rn5","dm3","danrer7","pantro4",
+                    "susscr3"),genome,NA),
                 seed=42
             ))
         },
@@ -374,6 +443,8 @@ getDefaultListArgs <- function(arg) {
                 signalScale=c("natural","log2"),
                 heatmapScale=c("each","common"),
                 heatmapFactor=1,
+                corrScale=c("normalized","each"),
+                corrSmoothPar=ifelse(is.null(design),0.1,0.5),
                 singleFacet=c("none","wrap","grid"),
                 multiFacet=c("wrap","grid"),
                 conf=TRUE,
@@ -405,92 +476,137 @@ getDefaultListArgs <- function(arg) {
     )
 }
 
-setr <- function(obj,key=c("design","profile","heatmap","correlation","orderBy",
-    "kmParams","plotParams"),value) {
-    checkTextArgs("key",key,c("design","profile","heatmap","correlation",
-        "orderBy","kmParams","plotParams"))
-    switch(key,
-        design = {
-            if (!is.null(design)) {
-                if (!is.data.frame(design))
-                    design <- read.delim(design,row.names=1)
-                nfac <- ncol(design)
-                if (length(obj$data)>1 && nfac>2)
-                    stop("When more than one files are provided for coverage ",
-                        "generation, the maximum number of allowed design ",
-                        "factors is 2")
-                if (length(obj$data)>1 && nfac>1 && obj$callopts$kmParams$k>0)
-                    stop("When more than one files are provided for coverage ",
-                        "generation and k-means clustering is also requested, ",
-                        "the maximum number of allowed design factors is 1")
-                if (length(obj$data)==1 && nfac>3)
-                    stop("The maximum number of allowed design factors is 3")
-                if (length(obj$data)==1 && nfac>2 && obj$callopts$kmParams$k>0)
-                    stop("The maximum number of allowed design factors when ",
-                        "k-means clustering is requested is 2")
-            }
-            obj$design <- design
-        },
-        profile = {
-            if (!all(class(value)==c("gg","ggplot"))) {
-                warning("The supplied profile plot is not a ggplot object! ",
-                    "Ignoring...",immediate.=TRUE)
-                return(obj)
-            }
-            obj$plots$profile <- value
-        },
-        heatmap = {
-            if (class(value)!=c("HeatmapList")) {
-                warning("The supplied heatmap plot is not a Heatmap object! ",
-                    "Ignoring...",immediate.=TRUE)
-                return(obj)
-            }
-            obj$plots$heatmap <- value
-        },
-        correlation = {
-            if (!all(class(value)==c("gg","ggplot"))) {
-                warning("The supplied correlation plot is not a ggplot ",
-                    " object! Ignoring...",immediate.=TRUE)
-                return(obj)
-            }
-            obj$plots$correlation <- value
-        },
-        orderBy = {
-            orderByDefault <- getDefaultListArgs("orderBy")
-            orderBy <- setArg(orderByDefault,value)
-            orderBy <- validateListArgs("orderBy",orderBy)
-            obj$callopts$orderBy <- orderBy
-            # Should change also complexHeatmapParams
-            if (length(grep("hc",orderBy$what))>0
-                && !(obj$callopts$complexHeatmapParams$main$cluster_rows 
-                || obj$callopts$complexHeatmapParams$group$cluster_rows)) {
-                message("Changing also hierarchical clustering parameters to ",
-                    "comply with new orderBy settings.")
-                obj$callopts$complexHeatmapParams$main$cluster_rows <- TRUE
-                obj$callopts$complexHeatmapParams$group$cluster_rows <- TRUE
-            }
-            if ((obj$callopts$complexHeatmapParams$main$cluster_rows 
-                || obj$callopts$complexHeatmapParams$group$cluster_rows)
-                && length(grep("hc",orderBy$what))==0) {
-                message("Changing also hierarchical clustering parameters to ",
-                    "comply with new orderBy settings.")
-                obj$callopts$complexHeatmapParams$main$cluster_rows <- FALSE
-                obj$callopts$complexHeatmapParams$group$cluster_rows <- FALSE
-            }
-        },
-        kmParams = {
-            kmParamsDefault <- getDefaultListArgs("kmParams")
-            kmParams <- setArg(kmParamsDefault,value)
-            kmParams <- validateListArgs("kmParams",kmParams)
-            obj$callopts$kmParams <- kmParams
-        },
-        plotParams = {
-            plotParamsDefault <- getDefaultListArgs("plotParams")
-            plotParams <- setArg(plotParamsDefault,value)
-            plotParams <- validateListArgs("plotParams",plotParams)
-            obj$callopts$plotParams <- plotParams
+#setr <- function(obj,key=c("design","profile","heatmap","correlation","orderBy",
+#    "kmParams","plotParams"),value) {
+setr <- function(obj,key,value=NULL) {
+    if (is.character(key)) { # Property name, property value pairs
+        if (is.null(value))
+            stop("When the key argument is a list of property names, the ",
+                "value argument must not be NULL.")
+        if (length(key)>1) { # Value must be a list of lists
+            if (length(key)!=length(lengths(value)))
+                stop("The number values to set must be equal to the number of ",
+                    "properties to change")
         }
-    )
+        else
+            value <- list(value)
+        valid <- key %in% c("design","profile","heatmap","correlation",
+            "orderBy","kmParams","plotParams")
+        not.valid <- which(!valid)
+        if (length(not.valid)>0) {
+            warning("The following parameters to set are are invalid and will ",
+                "be ignored: ",paste(key[not.valid],collapse=", "),
+                    immediate.=TRUE)
+            key[not.valid] <- NULL
+            value[not.valid] <- NULL
+        }
+        if (length(key)==0)
+            return(obj)
+        names(value) <- key
+        key <- value
+    }
+    else if (is.list(key)) { # Only a named list with property names and values
+        valid <- names(key) %in% c("design","profile","heatmap","correlation",
+            "orderBy","kmParams","plotParams")
+        not.valid <- which(!valid)
+        if (length(not.valid)>0) {
+            warning("The following parameters to set are are invalid and will ",
+                "be ignored: ",paste(names(key)[not.valid],collapse=", "),
+                    immediate.=TRUE)
+            key[not.valid] <- NULL
+        }
+        if (length(key)==0)
+            return(obj)
+    }
+    for (n in names(key)) {
+        switch(n,
+            design = {
+                if (!is.null(key[[n]])) {
+                    if (!is.data.frame(key[[n]]))
+                        key[[n]] <- read.delim(key[[n]],row.names=1)
+                    nfac <- ncol(key[[n]])
+                    if (length(obj$data)>1 && nfac>2)
+                        stop("When more than one files are provided for ",
+                            "coverage generation, the maximum number of ",
+                            "allowed value factors is 2")
+                    if (length(obj$data)>1 && nfac>1 
+                        && obj$callopts$kmParams$k>0)
+                        stop("When more than one files are provided for ",
+                            "coverage generation and k-means clustering is ",
+                            "also requested, the maximum number of allowed ",
+                            "design factors is 1")
+                    if (length(obj$data)==1 && nfac>3)
+                        stop("The maximum number of allowed design factors is",
+                            " 3")
+                    if (length(obj$data)==1 && nfac>2 
+                        && obj$callopts$kmParams$k>0)
+                        stop("The maximum number of allowed design factors ",
+                            "when k-means clustering is requested is 2")
+                }
+                obj$design <- key[[n]]
+            },
+            profile = {
+                if (!all(class(key[[n]])==c("gg","ggplot"))) {
+                    warning("The supplied profile plot is not a ggplot ",
+                        "object! Ignoring...",immediate.=TRUE)
+                    return(obj)
+                }
+                obj$plots$profile <- key[[n]]
+            },
+            heatmap = {
+                if (class(key[[n]])!=c("HeatmapList")) {
+                    warning("The supplied heatmap plot is not a Heatmap ",
+                        "object! Ignoring...",immediate.=TRUE)
+                    return(obj)
+                }
+                obj$plots$heatmap <- key[[n]]
+            },
+            correlation = {
+                if (!all(class(key[[n]])==c("gg","ggplot"))) {
+                    warning("The supplied correlation plot is not a ggplot ",
+                        " object! Ignoring...",immediate.=TRUE)
+                    return(obj)
+                }
+                obj$plots$correlation <- key[[n]]
+            },
+            orderBy = {
+                orderByDefault <- getDefaultListArgs("orderBy")
+                orderBy <- setArg(orderByDefault,key[[n]])
+                orderBy <- validateListArgs("orderBy",orderBy)
+                obj$callopts$orderBy <- orderBy
+                # Should change also complexHeatmapParams
+                if (length(grep("hc",orderBy$what))>0
+                    && !(obj$callopts$complexHeatmapParams$main$cluster_rows 
+                    || obj$callopts$complexHeatmapParams$group$cluster_rows)) {
+                    message("Changing also hierarchical clustering parameters ",
+                        "to comply with new orderBy settings.")
+                    obj$callopts$complexHeatmapParams$main$cluster_rows <- TRUE
+                    obj$callopts$complexHeatmapParams$group$cluster_rows <- TRUE
+                }
+                if ((obj$callopts$complexHeatmapParams$main$cluster_rows 
+                    || obj$callopts$complexHeatmapParams$group$cluster_rows)
+                    && length(grep("hc",orderBy$what))==0) {
+                    message("Changing also hierarchical clustering parameters ",
+                        "to comply with new orderBy settings.")
+                    obj$callopts$complexHeatmapParams$main$cluster_rows <- FALSE
+                    obj$callopts$complexHeatmapParams$group$cluster_rows <- 
+                        FALSE
+                }
+            },
+            kmParams = {
+                kmParamsDefault <- getDefaultListArgs("kmParams")
+                kmParams <- setArg(kmParamsDefault,key[[n]])
+                kmParams <- validateListArgs("kmParams",kmParams)
+                obj$callopts$kmParams <- kmParams
+            },
+            plotParams = {
+                plotParamsDefault <- getDefaultListArgs("plotParams")
+                plotParams <- setArg(plotParamsDefault,key[[n]])
+                plotParams <- validateListArgs("plotParams",plotParams)
+                obj$callopts$plotParams <- plotParams
+            }
+        )
+    }
     return(obj)
 }
 

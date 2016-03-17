@@ -31,6 +31,8 @@ recoup <- function(
         sampleTo=1e+6,
         spliceAction=c("split","keep","remove"),
         spliceRemoveQ=0.75,
+        bedGenome=ifelse(genome %in% c("hg18","hg19","hg38","mm9","mm10","rn5",
+            "dm3","danrer7","pantro4","susscr3"),genome,NA),
         seed=42
     ),
     #preprocessParams=getDefaultListArgs("preprocessParams"),
@@ -42,6 +44,8 @@ recoup <- function(
         signalScale=c("natural","log2"),
         heatmapScale=c("common","each"),
         heatmapFactor=1,
+        corrScale=c("normalized","each"),
+        corrSmoothPar=ifelse(is.null(design),0.1,0.5),
         singleFacet=c("none","wrap","grid"),
         multiFacet=c("wrap","grid"),
         conf=TRUE,
@@ -49,7 +53,7 @@ recoup <- function(
         outputDir=".",
         outputBase=NULL
     ),
-    #plotParams=getDefaultListArgs("plotParams"),
+    #plotParams=getDefaultListArgs("plotParams",design),
     saveParams=list(
         ranges=TRUE,
         coverage=TRUE,
@@ -152,9 +156,9 @@ recoup <- function(
     checkTextArgs("refdb",refdb,c("ensembl","ucsc","refseq"),multiarg=FALSE)
     checkTextArgs("type",type,c("chipseq","rnaseq"),multiarg=FALSE)
     checkNumArgs("fraction",fraction,"numeric",c(0,1),"botheq")
-    if (any(abs(flank)<500))
-        stop("The minimum flanking allowed is 500 bp")
-    if (any(abs(flank)>50000))
+    if (any(flank<0))
+        stop("The minimum flanking allowed is 0 bp")
+    if (any(flank>50000))
         stop("The maximum flanking allowed is 50000 bp")
         
     # If type is rnaseq, only genebody plots are valid
@@ -168,8 +172,9 @@ recoup <- function(
     orderByDefault <- getDefaultListArgs("orderBy")
     binParamsDefault <- getDefaultListArgs("binParams")
     selectorDefault <- getDefaultListArgs("selector")
-    preprocessParamsDefault <- getDefaultListArgs("preprocessParams")
-    plotParamsDefault <- getDefaultListArgs("plotParams")
+    preprocessParamsDefault <- getDefaultListArgs("preprocessParams",
+        genome=genome)
+    plotParamsDefault <- getDefaultListArgs("plotParams",design=design)
     saveParamsDefault <- getDefaultListArgs("saveParams")
     kmParamsDefault <- getDefaultListArgs("kmParams")
     strandedParamsDefault <- getDefaultListArgs("strandedParams")
@@ -197,6 +202,14 @@ recoup <- function(
     if (is.null(plotParams$outputBase))
         plotParams$outputBase <- paste(sapply(input,function(x) return(x$id)),
             collapse="-")
+    
+    if (any(sapply(input,function(x) return(tolower(x$format)=="bed")))
+        && !(preprocessParams$bedGenome %in% c("hg18","hg19","hg38","mm9",
+            "mm10","rn5","dm3","danrer7","pantro4","susscr3")))
+        stop("When short read files are in BED format, either the genome ",
+            "parameter should be one\nof the supported organisms, or ",
+            "preprocessParams$bedGenome must be specified as one of them.")
+   
     # End of simple parameter checking for a new or a restored object
     ############################################################################
     
@@ -509,8 +522,25 @@ recoup <- function(
     # Now we must follow two paths according to region type, genebody and custom
     # areas with equal/unequal widths, or tss, tes and 1-width custom areas
     callParams$customIsBase <- FALSE
-    if (region=="custom" && all(width(genomeRanges)==1))
+    if (region=="custom" && all(width(genomeRanges)==1)) {
+        if (all(flank==0)) {
+            warning("Flanking cannot be zero bp in both directions when the ",
+                "reference region is only 1bp! Setting to default ",
+                "(2000,2000)...",immediate.=TRUE)
+            flank <- c(2000,2000)
+            callParams$flank <- flank
+        }
         callParams$customIsBase <- TRUE
+    }
+    if (region %in% c("tss","tes")) {
+        if (all(flank==0)) {
+            warning("Flanking cannot be zero bp in both directions when the ",
+                "reference region is \"tss\" or \"tes\"! Setting to default ",
+                "(2000,2000)...", immediate.=TRUE)
+            flank <- c(2000,2000)
+            callParams$flank <- flank
+        }
+    }
     if (type=="chipseq")
         input <- coverageRef(input,genomeRanges,region,flank,strandedParams,
             rc=rc)#,bamParams)

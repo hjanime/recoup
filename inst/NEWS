@@ -49,7 +49,7 @@ BUG FIXES
     o Fixed bug with colors in curve profile single-design plots.
 
 
-CHANGES IN VERSION 0.6.0 (2016-02-05)
+CHANGES IN VERSION 0.62.0 (2016-03-03)
 -------------------------------------
 
 NEW FEATURES
@@ -57,11 +57,20 @@ NEW FEATURES
     o Added plyr import to reduce memory footprints in some averaging 
     calculations.
     o Added another plot type which shows correlation between average coverage
-    in summarized genomic regions.
-    o Plotting of confidence intervals for profile plots (geom_ribbon) is now an
-    option.
+    in summarized genomic regions and respective plot control parameters.
+    o Plotting of confidence intervals for profile (and the newly added 
+    correlation) plots (geom_ribbon) is now an option.
+    o The setter function now supports mulitple argument setting at once.
+    o Object slicing is now also performed on genomic position instead of only
+    reference regions and samples.
+    o Stopped automatic width in heatmaps and passed control to the user through
+    the use of ... and also using ... for plots rendered with ggplot.
     o Updated vignettes.
     
 BUG FIXES
-
-    o None.
+    o Fixed bug when reading reads from bed files. GenomeInfoDb is used to fill
+    the seqinfo slot of the produced GenomicRanges. Credits to Orsalia Hazapis,
+    BSRC 'Alexander Fleming'.
+    o Fixed bug when region is "custom" and the intervals were not of fixed 
+    width. Credits to Orsalia Hazapis, BSRC 'Alexander Fleming'.
+    o Fixed bug in custom heatmap ordering.

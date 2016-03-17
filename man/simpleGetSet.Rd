@@ -6,9 +6,7 @@
 \usage{
     getr(obj, key = c("design", "profile", "heatmap", 
         "correlation", "orderBy", "kmParams", "plotParams"))
-    setr(obj, key = c("design", "profile", "heatmap", 
-        "correlation", "orderBy", "kmParams", "plotParams"), 
-        value)
+    setr(obj, key, value = NULL)
 }
 \arguments{
     \item{obj}{a list object created from 
@@ -19,7 +17,10 @@
     \code{kmParams}, \code{plotParams}. For 
     \code{"profile"}, \code{"heatmap"}, the respective 
     plots are retrieved or changed according to which 
-    function is called. For the rest, see the main 
+    function is called. For \code{setr} it can (and 
+    preferably) be a named list of arguments to be changed
+    in the \code{recoup} list object. The list names are
+    the same as above. For the rest, see the main 
     \code{\link{recoup}} man page.}
     
     \item{value}{a valid \code{ggplot} or 
@@ -72,6 +73,8 @@ pp <- pp +
     
 # Store the new plot
 test.tss <- setr(test.tss,"profile",pp)
+## or even better
+# test.tss <- setr(test.tss,list(profile=pp))
 }
 \author{
     Panagiotis Moulos

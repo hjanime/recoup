@@ -2,8 +2,8 @@
 \alias{sliceObj}
 \title{Subset recoup output list objects}
 \usage{
-    sliceObj(obj, i = NULL, j = NULL, dropPlots = FALSE,
-        rc = NULL) 
+    sliceObj(obj, i = NULL, j = NULL, k = NULL, 
+        dropPlots = FALSE, rc = NULL)
 }
 \arguments{
     \item{obj}{a list object created from 
@@ -16,7 +16,13 @@
     \code{selector} attached to the input object (see
     \code{\link{recoup}} arguments) it will be dropped.}
     
-    \item{j}{vector of numeric or character indices
+    \item{j}{vector of numeric indices corresponding to 
+    the profile matrix vertical index (or base pair 
+    position or bin of base pairs) so as to subset the
+    profile. The function will do its best to "guess"
+    new plotting x-axis labels.}
+    
+    \item{k}{vector of numeric or character indices
     corresponding to sample index or sample names. These
     will be returned.}
     
@@ -35,10 +41,16 @@
 \description{
     This function takes as input argument an output object
     from \code{\link{recoup}} and subsets it according to the
-    inputs \code{i,j}. The attached plots may or may not be
+    inputs \code{i,j,k}. The attached plots may or may not be
     recalculated. Other input parameters stores in 
     \code{obj$callopts} are not changed apart from any
-    \code{selector} option which is dropped.
+    \code{selector} option which is dropped. Note that when
+    slicing vertically (by \code{j}), the \code{$coverage}
+    member of the input data (if present) is \bold{not} 
+    sliced, but remains as is. You can drop it using
+    \code{\link{removeData}} as it is used to recalculate
+    profile matrices only if bin sizes are changed in a 
+    \code{\link{recoup}} call.
 }
 \examples{
 # Load some data
@@ -59,7 +71,7 @@ test.tss <- recoup(
 )
 
 # Plot coverage profiles
-o <- sliceObj(test.tss,i=1:10,j=1)
+o <- sliceObj(test.tss,i=1:10,k=1)
 }
 \author{
     Panagiotis Moulos

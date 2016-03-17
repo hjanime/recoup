@@ -1,7 +1,7 @@
 recoupPlot <- function(recoupObj,what=c("profile","heatmap","correlation"),
     device=c("x11","png","jpg","tiff","bmp","pdf","ps"),outputDir=".",
     outputBase=paste(sapply(recoupObj,function(x) return(x$data$id)),sep="_"),
-    mainh=1) {
+    mainh=1,...) {
     what <- tolower(what)
     device <- tolower(device[1])
     checkTextArgs("what",what,c("profile","heatmap","correlation"),
@@ -15,12 +15,9 @@ recoupPlot <- function(recoupObj,what=c("profile","heatmap","correlation"),
                 dev.new()
                 plot(theProfile)
             }
-            else {
-                # !!!
-                devv <- device
-                ggsave(filename=paste(outputBase,"_profile.",devv,sep=""),
-                    plot=theProfile,path=outputDir)
-            }
+            else
+                ggsave(filename=paste(outputBase,"_profile.",device,sep=""),
+                    plot=theProfile,path=outputDir,device=device,...)
         }
         else
             message("Profile to plot not found! Are you sure you called ",
@@ -34,14 +31,22 @@ recoupPlot <- function(recoupObj,what=c("profile","heatmap","correlation"),
                 draw(theHeatmap,gap=grid::unit(1,"cm"),main_heatmap=mainh)
             }
             else {
-                # Starting from width=4, we add 2 inches for each heatmap
-                iw <- 4 + (length(input)-1)*2
-                if (device == "pdf")
-                    graphicsOpen(device,paste(outputBase,"_heatmap.",device,sep=""),
-                        width=iw)
-                else
-                    graphicsOpen(device,paste(outputBase,"_heatmap.",device,sep=""),
-                        width=iw,units="in")
+                graphicsOpen(device,paste(outputBase,"_heatmap.",device,
+                    sep=""),...)
+                #if (device == "pdf") {
+                #   # Starting from width=4, we add 2 inches for each heatmap
+                #   iw <- 4 + (length(recoupObj$data)-1)*2
+                #    graphicsOpen(device,paste(outputBase,"_heatmap.",
+                #        device,sep=""),width=iw,...)
+                #}
+                #else {
+                #   # Starting from width=400, we add 200 pixels for each 
+                #   # heatmap
+                #   iw <- 400 + (length(recoupObj$data)-1)*200
+                #   graphicsOpen(device,paste(outputBase,"_heatmap.",
+                #       device,sep=""),width=iw,...)
+                #    graphicsOpen(device,paste(outputBase,"_heatmap.",device,
+                #       sep=""),...)
                 draw(theHeatmap,gap=grid::unit(1,"cm"),main_heatmap=mainh)
                 graphicsClose(device)
             }
@@ -57,12 +62,9 @@ recoupPlot <- function(recoupObj,what=c("profile","heatmap","correlation"),
                 dev.new()
                 plot(theCorrelation)
             }
-            else {
-                # !!!
-                devv <- device
-                ggsave(filename=paste(outputBase,"_correlation.",devv,sep=""),
-                    plot=theCorrelation,path=outputDir)
-            }
+            else
+                ggsave(filename=paste(outputBase,"_correlation.",device,sep=""),
+                    plot=theCorrelation,path=outputDir,device=device,...)
         }
         else
             message("Correlation to plot not found! Are you sure you called ",
@@ -95,7 +97,8 @@ recoupProfile <- function(recoupObj,samples=NULL,rc=NULL) {
         yAxisParams=list(
             signalScale=recoupObj$callopts$plotParams$signalScale,
             heatmapScale=recoupObj$callopts$plotParams$heatmapScale,
-            heatmapFactor=recoupObj$callopts$plotParams$heatmapFactor
+            heatmapFactor=recoupObj$callopts$plotParams$heatmapFactor,
+            conf=recoupObj$callopts$plotParams$conf
         ),
         binParams=recoupObj$callopts$binParams,
         ggplotParams=ggplotParams
@@ -160,9 +163,14 @@ recoupProfile <- function(recoupObj,samples=NULL,rc=NULL) {
         ggplot.plot <-
             ggplot(ggplot.data,mapping=aes(x=Position,y=Signal,
                 colour=Condition)) + 
-            geom_line(size=ggParams$lineSize) +
-            geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax,colour=Condition,
-                fill=Condition),alpha=0.3,size=0) +
+            geom_line(size=ggParams$lineSize)
+        
+        if (opts$yAxisParams$conf)
+            ggplot.plot <- ggplot.plot +
+                geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax,colour=Condition,
+                    fill=Condition),alpha=0.3,size=0) 
+        
+        ggplot.plot <- ggplot.plot +
             theme_bw() +
             xlab("\nPosition in bp") +
             ylab("Average signal\n") +
@@ -255,9 +263,14 @@ recoupProfile <- function(recoupObj,samples=NULL,rc=NULL) {
             ggplot.plot <-
                 ggplot(ggplot.data,mapping=aes(x=Position,y=Signal,
                     colour=Condition)) + 
-                geom_line(size=ggParams$lineSize) +
-                geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax,
-                    colour=Condition,fill=Condition),alpha=0.3,size=0) +
+                geom_line(size=ggParams$lineSize) 
+                
+            if (opts$yAxisParams$conf)
+                ggplot.plot <- ggplot.plot +
+                    geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax,
+                        colour=Condition,fill=Condition),alpha=0.3,size=0) 
+                        
+            ggplot.plot <- ggplot.plot +
                 theme_bw() +
                 xlab("\nPosition in bp") +
                 ylab("Average signal\n") +
@@ -314,18 +327,30 @@ recoupProfile <- function(recoupObj,samples=NULL,rc=NULL) {
                     levels=unique(as.character(faceter[,3])))
             }
             
-            if (ggParams$singleFacet=="none")
-                ggplot.plot <- ggplot(ggplot.data,mapping=aes(x=Position,
-                    y=Signal,colour=Design)) +
-                    geom_line(size=ggParams$lineSize) +
-                    geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax,
-                        colour=Design,fill=Design),alpha=0.3,size=0)
-            else
-                ggplot.plot <- ggplot(ggplot.data,mapping=aes(x=Position,
-                    y=Signal,colour=Condition)) +
-                    geom_line(size=ggParams$lineSize) +
-                    geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax),
-                        alpha=0.3,size=0)
+            if (opts$yAxisParams$conf) {
+                if (ggParams$singleFacet=="none")
+                    ggplot.plot <- ggplot(ggplot.data,mapping=aes(x=Position,
+                        y=Signal,colour=Design)) +
+                        geom_line(size=ggParams$lineSize) +
+                        geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax,
+                            colour=Design,fill=Design),alpha=0.3,size=0)
+                else
+                    ggplot.plot <- ggplot(ggplot.data,mapping=aes(x=Position,
+                        y=Signal,colour=Condition)) +
+                        geom_line(size=ggParams$lineSize) +
+                        geom_ribbon(aes(x=Position,ymin=ymin,ymax=ymax,
+                            colour=Condition,fill=Condition),alpha=0.3,size=0)
+            }
+            else {
+                if (ggParams$singleFacet=="none")
+                    ggplot.plot <- ggplot(ggplot.data,mapping=aes(x=Position,
+                        y=Signal,colour=Design)) +
+                        geom_line(size=ggParams$lineSize)
+                else
+                    ggplot.plot <- ggplot(ggplot.data,mapping=aes(x=Position,
+                        y=Signal,colour=Condition)) +
+                        geom_line(size=ggParams$lineSize)
+            }
             ggplot.plot <- ggplot.plot +
                 theme_bw() +
                 xlab("\nPosition in bp") +
@@ -575,7 +600,9 @@ recoupCorrelation <- function(recoupObj,samples=NULL,rc=NULL) {
     opts <- list(
         yAxisParams=list(
             signalScale=recoupObj$callopts$plotParams$signalScale,
-            conf=recoupObj$callopts$plotParams$conf
+            conf=recoupObj$callopts$plotParams$conf,
+            corrScale=recoupObj$callopts$plotParams$corrScale,
+            corrSmoothPar=recoupObj$callopts$plotParams$corrSmoothPar
         ),
         orderBy=recoupObj$callopts$orderBy,
         binParams=recoupObj$callopts$binParams,
@@ -605,6 +632,12 @@ recoupCorrelation <- function(recoupObj,samples=NULL,rc=NULL) {
             input <- input[samples]
     }
     
+    # Normalize the profile if requested
+    if (opts$yAxisParams$corrScale=="normalized") {
+        for (n in names(input))
+            input[[n]]$profile <- input[[n]]$profile/max(input[[n]]$profile)
+    }
+    
     profileColors <- unlist(sapply(input,function(x) return(x$color)))
     if (!is.null(profileColors))
         names(profileColors) <- unlist(sapply(input,function(x) return(x$name)))
@@ -618,18 +651,18 @@ recoupCorrelation <- function(recoupObj,samples=NULL,rc=NULL) {
         index <- 1:length(profiles[[1]][[1]])
         names <- sapply(input,function(x) return(x$name))
         position <- rep(index,length(input))
-        signal <- unlist(lapply(profiles,function(x,s) {
-            return(lowess(x$profile[s],f=0.1)$y)
+        signal <- unlist(lapply(profiles,function(x,s,p) {
+            return(lowess(x$profile[s],f=p)$y)
             #return(smooth.spline(x$profile[s])$y)
-        },sorter$ix))
-        ymin <- unlist(lapply(profiles,function(x,s) {
-            return(lowess(x$lower[s],f=0.1)$y)
+        },sorter$ix,opts$yAxisParams$corrSmoothPar))
+        ymin <- unlist(lapply(profiles,function(x,s,p) {
+            return(lowess(x$lower[s],f=p)$y)
             #return(smooth.spline(x$lower[s])$y)
-        },sorter$ix))
-        ymax <- unlist(lapply(profiles,function(x,s) {
-            return(lowess(x$upper[s],f=0.1)$y)
+        },sorter$ix,opts$yAxisParams$corrSmoothPar))
+        ymax <- unlist(lapply(profiles,function(x,s,p) {
+            return(lowess(x$upper[s],f=p)$y)
             #return(smooth.spline(x$upper[s])$y)
-        },sorter$ix))
+        },sorter$ix,opts$yAxisParams$corrSmoothPar))
         condition <- rep(names,each=length(index))
         
         # Create ggplot data frame
@@ -696,12 +729,18 @@ recoupCorrelation <- function(recoupObj,samples=NULL,rc=NULL) {
             }
             o <- list()
             o$profile <- unlist(lapply(x,function(y) {
+                if (any(is.na(y$profile)))
+                    y$profile[is.na(y$profile)] <- 0
                 return(y$profile)
             }),use.names=FALSE)
             o$upper <- unlist(lapply(x,function(y) {
+                if (any(is.na(y$upper)))
+                    y$upper[is.na(y$upper)] <- 0
                 return(y$upper)
             }),use.names=FALSE)
             o$lower <- unlist(lapply(x,function(y) {
+                if (any(is.na(y$lower)))
+                    y$lower[is.na(y$lower)] <- 0
                 return(y$lower)
             }),use.names=FALSE)
             o$design <- do.call("rbind",tmp)
@@ -718,18 +757,27 @@ recoupCorrelation <- function(recoupObj,samples=NULL,rc=NULL) {
         condition <- rep(names,sapply(designProfiles,function(x) {
             return(length(x$profile))
         }))
-        signal <- unlist(lapply(designProfiles,function(x,s)
+        signal <- unlist(lapply(designProfiles,function(x,s,p) {
             #return(lowess(x$profile[s],f=0.05)$y),sorter),
-            return(smooth.spline(x$profile[s],spar=0.5)$y),sorter),
-        use.names=FALSE)
-        ymin <- unlist(lapply(designProfiles,function(x,s) 
+            if (any(is.na(x$lower[s])) || length(x$profile[s])<4)
+                return(x$profile[s])
+            else
+                return(smooth.spline(x$profile[s],spar=p)$y)
+        },sorter,opts$yAxisParams$corrSmoothPar),use.names=FALSE)
+        ymin <- unlist(lapply(designProfiles,function(x,s,p) {
             #return(lowess(x$lower[s],f=0.05)$y),sorter),
-            return(smooth.spline(x$lower[s],spar=0.5)$y),sorter),
-        use.names=FALSE)
-        ymax <- unlist(lapply(designProfiles,function(x,s) 
+            if (any(is.na(x$lower[s])) || length(x$lower[s])<4)
+                return(x$lower[s])
+            else
+                return(smooth.spline(x$lower[s],spar=p)$y)
+        },sorter,opts$yAxisParams$corrSmoothPar),use.names=FALSE)
+        ymax <- unlist(lapply(designProfiles,function(x,s,p) {
             #return(lowess(x$upper[s],f=0.05)$y),sorter),
-            return(smooth.spline(x$upper[s],spar=0.5)$y),sorter),
-        use.names=FALSE)
+            if (any(is.na(x$lower[s])) || length(x$lower[s])<4)
+                return(x$lower[s])
+            else
+                return(smooth.spline(x$upper[s],spar=p)$y)
+        },sorter,opts$yAxisParams$corrSmoothPar),use.names=FALSE)
             
         if (length(input)>1) { # Case where two factors max
             ggplot.data <- data.frame(
@@ -885,12 +933,22 @@ calcPlotProfiles <- function(input,opts,sdim=c(2,1),rc) {
                 x$profile <- log2(x$profile)
             }
             o <- list()
-            fit <- smooth.spline(apply(x$profile,sdim,avgfun))
-            ci <- ssCI(fit)
-            o$profile <- fit$y
-            o$upper <- ci$upper
-            o$lower <- ci$lower
-            return(o)
+            tryCatch({
+                fit <- smooth.spline(apply(x$profile,sdim,avgfun))
+                ci <- ssCI(fit)
+                o$profile <- fit$y
+                o$upper <- ci$upper
+                o$lower <- ci$lower
+                return(o)
+            },error=function(e) {
+                message("Caught splines error: ",e)
+                o$profile <- apply(x$profile,sdim,avgfun)
+                varfun <- ifelse(avgfun=="mean","sd","mad")
+                va <- apply(x,2,varfun)
+                o$upper <- o$profile + va
+                o$lower <- o$profile - va
+                return(o)
+            },finally="")
         },opts$binParams$sumStat,opts$yAxisParams$signalScale,rc=rc)
     else
         profiles <- cmclapply(input,function(x,avgfun,scale) {
@@ -918,12 +976,22 @@ calcDesignPlotProfiles <- function(covmat,opts,sdim=c(2,1),rc) {
                 x <- log2(x)
             }
             o <- list()
-            fit <- smooth.spline(apply(x,sdim,avgfun))
-            ci <- ssCI(fit)
-            o$profile <- fit$y
-            o$upper <- ci$upper
-            o$lower <- ci$lower
-            return(o)
+            tryCatch({
+                fit <- smooth.spline(apply(x,sdim,avgfun))
+                ci <- ssCI(fit)
+                o$profile <- fit$y
+                o$upper <- ci$upper
+                o$lower <- ci$lower
+                return(o)
+            },error=function(e) {
+                message("Caught splines error: ",e)
+                o$profile <- apply(x,sdim,avgfun)
+                varfun <- ifelse(avgfun=="mean","sd","mad")
+                va <- apply(x,2,varfun)
+                o$upper <- o$profile + va
+                o$lower <- o$profile - va
+                return(o)
+            },finally="")
         },opts$binParams$sumStat,opts$yAxisParams$signalScale,rc=rc)
     else
         profiles <- cmclapply(covmat,function(x,avgfun,scale) {
@@ -1325,37 +1393,54 @@ orderDesignSignals <- function(input,design,opts) {
 
 makeHorizontalAnnotation <- function(width,opts,type=c("profile","heatmap")) {
     fl <- opts$xAxisParams$flank
+    flb <- fl
     fl[1] <- -fl[1]
-    if (type=="heatmap" && opts$binParams$forceHeatmapBinning)
+    if (type=="heatmap" && opts$binParams$forceHeatmapBinning && !all(fl==0))
         opts$binParams$flankBinSize <- opts$binParams$forcedBinSize[1]
-    edgeLabels <- paste(round(fl/1000,1),"kb",sep="")
+    if (!any(fl==0))
+        edgeLabels <- paste(round(fl/1000,1),"kb",sep="")
+    else {
+        if (fl[1]==0 && fl[2]!=0)
+            edgeLabels <- paste(round(fl[2]/1000,1),"kb",sep="")
+        else if (fl[1]!=0 && fl[2]==0)
+            edgeLabels <- paste(round(fl[1]/1000,1),"kb",sep="")
+        else
+            edgeLabels <- NULL
+    }
     switch(opts$xAxisParams$region,
         tss = {
             midLabels <- "TSS"
-            #breaks <- round(c(width/8,width/2,width-width/8),1)
             breaks <- c(1,round(width/2,1),width)
         },
         tes = {
             midLabels <- "TES"
-            #breaks <- round(c(width/8,width/2,width-width/8),1)
             breaks <- c(1,round(width/2,1),width)
         },
         genebody = {
             midLabels <- c("TSS","TES")
             if (opts$binParams$flankBinSize==0)
                 breaks <- c(
-                    1, #round(abs(opts$flank[1])/8,1),
+                    1,
                     abs(opts$xAxisParams$flank[1]),
                     width-opts$xAxisParams$flank[2],
-                    width #round(width-opts$flank[2]/8)
+                    width
                 )
-            else
+            else {
+                f <- flb/max(flb)
+                r <- flb/sum(flb)
+                rdiff <- round(abs(opts$binParams$regionBinSize - 
+                    (width - opts$binParams$flankBinSize*f[1] - 
+                    opts$binParams$flankBinSize*f[2])))
                 breaks <- c(
-                    1, #round(opts$binParams$flankBinSize/8,1),
-                    opts$binParams$flankBinSize,
-                    width-opts$binParams$flankBinSize,
-                    width #round(width-opts$binParams$flankBinSize/8)
+                    1,
+                    round(opts$binParams$flankBinSize*f[1] + rdiff*r[1]),
+                    round(width-(opts$binParams$flankBinSize*f[2] + 
+                        rdiff*r[2])),
+                    #round(opts$binParams$flankBinSize*f[1]),
+                    #round(width-(opts$binParams$flankBinSize*f[2])),
+                    width
                 )
+            }
         },
         custom = {
             if (opts$xAxisParams$customIsBase) {
@@ -1366,22 +1451,44 @@ makeHorizontalAnnotation <- function(width,opts,type=c("profile","heatmap")) {
                 midLabels <- c("Start","End")
                 if (opts$binParams$flankBinSize==0)
                     breaks <- c(
-                        1, #round(abs(opts$flank[1])/8,1),
+                        1,
                         abs(opts$xAxisParams$flank[1]),
                         width-opts$xAxisParams$flank[2],
-                        width #round(width-opts$flank[2]/8)
+                        width
                     )
-                else
+                else {
+                    f <- flb/max(flb)
+                    r <- flb/sum(flb)
+                    rdiff <- round(abs(opts$binParams$regionBinSize - 
+                        (width - opts$binParams$flankBinSize*f[1] - 
+                        opts$binParams$flankBinSize*f[2])))
                     breaks <- c(
-                        1, #round(opts$binParams$flankBinSize/8,1),
-                        opts$binParams$flankBinSize,
-                        width-opts$binParams$flankBinSize,
-                        width #round(width-opts$binParams$flankBinSize/8)
+                        1,
+                        round(opts$binParams$flankBinSize*f[1] + rdiff*r[1]),
+                        round(width-(opts$binParams$flankBinSize*f[2] + 
+                            rdiff*r[2])),
+                        width
                     )
+                }
             }
         }
     )
-    labels <- c(edgeLabels[1],midLabels,edgeLabels[2])
+    if (!any(fl==0))
+        labels <- c(edgeLabels[1],midLabels,edgeLabels[2])
+    else {
+        if (fl[1]==0 && fl[2]!=0) {
+            labels <- c(midLabels,edgeLabels)
+            breaks <- breaks[c(1,3,4)]
+        }
+        else if (fl[1]!=0 && fl[2]==0) {
+            labels <- c(edgeLabels,midLabels)
+            breaks <- breaks[c(1,2,4)]
+        }
+        else {
+            labels <- midLabels
+            breaks <- breaks[c(1,4)]
+        }
+    }
     return(list(breaks=breaks,labels=labels))
 }
 
