@@ -5,7 +5,6 @@ Title: An R package for the creation of complex genomic
 Author: Panagiotis Moulos <moulos@fleming.gr>
 Maintainer: Panagiotis Moulos <moulos@fleming.gr>
 Depends:
-    R (>= 3.2.0),
     GenomicRanges,
     GenomicAlignments,
     ggplot2,
@@ -49,8 +48,8 @@ biocViews: Software, GeneExpression, Preprocessing, QualityControl,
 VignetteBuilder: knitr
 Authors@R: c(person(given="Panagiotis", family="Moulos",
     email="moulos@fleming.gr", role=c("aut", "cre")))
-Version: 0.62.0
-Date: 2016-03-17
+Version: 0.99.2
+Date: 2016-03-22
 Collate:
     'annotation.R'
     'argcheck.R'

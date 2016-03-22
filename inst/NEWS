@@ -49,7 +49,7 @@ BUG FIXES
     o Fixed bug with colors in curve profile single-design plots.
 
 
-CHANGES IN VERSION 0.62.0 (2016-03-03)
+CHANGES IN VERSION 0.99.2 (2016-03-22)
 -------------------------------------
 
 NEW FEATURES
@@ -65,6 +65,8 @@ NEW FEATURES
     reference regions and samples.
     o Stopped automatic width in heatmaps and passed control to the user through
     the use of ... and also using ... for plots rendered with ggplot.
+    o Added documentation for recoup_test_data
+    o Added small BAM files for testing of the preprocessRanges()) function.
     o Updated vignettes.
     
 BUG FIXES

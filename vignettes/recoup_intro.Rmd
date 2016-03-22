@@ -98,7 +98,7 @@ vignettes of this package.
 Detailed instructions on how to run the recoup genomic profile creation 
 pipeline can be found under the main documentation of the package:
 
-```{r eval=FALSE}
+```{r echo=TRUE, eval=TRUE, message=FALSE}
 library(recoup)
 help(recoup)
 ```
@@ -133,7 +133,7 @@ For a more complete test dataset (a small one) have a look and download from
 The following commands should provide some information on the embedded test 
 data, which are subsets of the complete test data in the above link.
 
-```{r eval=FALSE}
+```{r echo=TRUE, eval=TRUE, message=FALSE}
 help(test.input)
 help(test.genome)
 help(test.design)
@@ -144,8 +144,8 @@ help(test.exons)
 
 In order to run smoothly some usage examples and produce some realistic results, 
 you need to download a set of example BAM files, genomic regions and design 
-files from [here]
-(https://drive.google.com/file/d/0BxxrqIl3Nb0NSVNqdGNPa3M3cnc/view?usp=sharing). 
+files from 
+[here](https://drive.google.com/file/d/0BxxrqIl3Nb0NSVNqdGNPa3M3cnc/view?usp=sharing).
 Following, a description of each file in the archive (the tissue is always 
 liver):
 
@@ -205,9 +205,10 @@ experiments (signals over non-continuous genomic regions). Due to restrictions
 (logical ones) imposed by the Bioconductor development core team, the data that
 are required for a realistic tutorial of the `recoup` package cannot be 
 included. Thus, this page along with the rest of the tutorial on how to create
-genomic profiles from ChIP-Seq or RNA-Seq data can be found either [here]
-(http://epigenomics.fleming.gr/~panos/recoup_tutorial) or in the wiki `recoup` 
-pages in [github](https://github.com/pmoulos/recoup/wiki/Introduction-to-recoup)
+genomic profiles from ChIP-Seq or RNA-Seq data can be found either 
+[here](http://epigenomics.fleming.gr/~panos/recoup_tutorial) or in the wiki 
+`recoup` pages in 
+[github](https://github.com/pmoulos/recoup/wiki/Introduction-to-recoup)
 
 ## Important notes
 

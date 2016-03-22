@@ -31,16 +31,41 @@
     preprocessing steps like normalization.
 }
 \examples{
-\dontrun{
-    # This example cannot run as it is dependent on the 
-    # presence of BAM files not included with the package
-    data("recoup_test_data",package="recoup")
-    pp <- list(normalize="none",sampleTo=1e+6,
-        spliceAction="split",seed=42)
-    test.input[[1]]$ranges <- NULL
-    test.input[[2]]$ranges <- NULL
-    test.input <- preprocessRanges(input,pp)
-}
+    # This example only demonstrates the usage of the
+    # preprocessRanges function. The input BAM files
+    # included with the package will not produce
+    # realistic plots as they contain only a very small
+    # subset of the original data presented in the 
+    # vignettes (50k reads). Please see recoup vignettes 
+    # for further demonstrations.
+    test.in <- list(
+        WT_H4K20me1=list(
+            id="WT_H4K20me1",
+            name="WT H4K20me1",
+            file=system.file("extdata",
+                "WT_H4K20me1_50kr.bam", 
+                package="recoup"),
+            format="bam",
+            color="#EE0000"
+        ),
+        Set8KO_H4K20me1=list(
+            id="Set8KO_H4K20me1",
+            name="Set8KO H4K20me1",
+            file=system.file("extdata", 
+                "Set8KO_H4K20me1_50kr.bam", 
+                package="recoup"),
+            format="bam",
+            color="#00BB00"
+        )
+    )
+    
+    pp=list(
+        normalize="none",
+        spliceAction="split",
+        spliceRemoveQ=0.75
+    )
+    
+    test.in <- preprocessRanges(test.in,pp)
 }
 \author{
     Panagiotis Moulos
